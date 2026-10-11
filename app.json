@@ -5,10 +5,8 @@
     "scheme": "salonpos",
     "version": "1.0.0",
     "orientation": "default",
-    
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -22,7 +20,6 @@
     },
     "android": {
       "package": "com.salonpos.app",
-      
       "permissions": [
         "BLUETOOTH",
         "BLUETOOTH_ADMIN",
@@ -41,7 +38,13 @@
         }
       ],
       "expo-status-bar"
-    ]
-    
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b04a7ad1-0930-47e8-9912-5e5261930e48"
+      }
+    },
+    "owner": "mldyzhrn"
   }
 }
