@@ -1,25 +1,47 @@
 {
   "expo": {
-    "name": "salon-pos-tmp",
-    "slug": "salon-pos-tmp",
+    "name": "Salon POS Pro",
+    "slug": "salon-pos-pro",
+    "scheme": "salonpos",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "orientation": "default",
+    
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.salonpos.app",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Dibutuhkan untuk menghubungkan printer thermal via Bluetooth.",
+        "NSBluetoothPeripheralUsageDescription": "Dibutuhkan untuk mencetak struk via printer Bluetooth."
+      }
     },
     "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false
+      "package": "com.salonpos.app",
+      
+      "permissions": [
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_SCAN",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "DEFAULT"
+        }
+      ],
+      "expo-status-bar"
+    ]
+    
   }
 }

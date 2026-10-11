@@ -1,0 +1,117 @@
+{
+  "$comment": "Skema data untuk sinkronisasi SQLite lokal <-> Google Sheets via Apps Script. Semua field uang = integer rupiah (no decimals). Semua timestamp = ISO 8601 UTC string.",
+  "sheets": {
+    "Transactions": {
+      "primaryKey": "localId",
+      "columns": [
+        { "name": "localId", "type": "string(uuid)", "desc": "ID lokal, idempotency key" },
+        { "name": "receiptNo", "type": "string", "desc": "Nomor struk, format SAL-YYYYMMDD-#####" },
+        { "name": "outletId", "type": "string" },
+        { "name": "cashierId", "type": "string" },
+        { "name": "customerName", "type": "string|null" },
+        { "name": "subtotal", "type": "integer", "desc": "rupiah, sebelum diskon/pajak" },
+        { "name": "discountTotal", "type": "integer" },
+        { "name": "taxTotal", "type": "integer" },
+        { "name": "grandTotal", "type": "integer" },
+        { "name": "paymentMethod", "type": "enum(cash,midtrans_qris,midtrans_cc,midtrans_va,split)" },
+        { "name": "paymentBreakdown", "type": "json", "desc": "[{method, amount}]; sum == grandTotal" },
+        { "name": "status", "type": "enum(pending,paid,void,refunded)" },
+        { "name": "midtransOrderId", "type": "string|null" },
+        { "name": "createdAt", "type": "string(iso8601)" },
+        { "name": "syncedAt", "type": "string(iso8601)|null" }
+      ]
+    },
+    "TransactionItems": {
+      "primaryKey": "id",
+      "columns": [
+        { "name": "id", "type": "string(uuid)" },
+        { "name": "transactionLocalId", "type": "string(uuid)", "fk": "Transactions.localId" },
+        { "name": "itemType", "type": "enum(service,retail)" },
+        { "name": "itemId", "type": "string" },
+        { "name": "itemName", "type": "string" },
+        { "name": "qty", "type": "integer" },
+        { "name": "unitPrice", "type": "integer" },
+        { "name": "lineDiscount", "type": "integer" },
+        { "name": "lineTotal", "type": "integer" },
+        { "name": "stylistId", "type": "string|null" },
+        { "name": "commissionBasis", "type": "enum(percent,fixed,none)" },
+        { "name": "commissionValue", "type": "integer", "desc": "basis-poin jika percent (1/100%), rupiah jika fixed" },
+        { "name": "commissionAmount", "type": "integer" }
+      ]
+    },
+    "JournalEntries": {
+      "primaryKey": "id",
+      "columns": [
+        { "name": "id", "type": "string(uuid)" },
+        { "name": "transactionLocalId", "type": "string(uuid)|null" },
+        { "name": "date", "type": "string(yyyy-mm-dd)" },
+        { "name": "account", "type": "enum(kas,piutang,pendapatan_jasa,pendapatan_retail,hpp_retail,hpp_bahan,beban_komisi,beban_operasional,hutang_komisi)" },
+        { "name": "direction", "type": "enum(debit,kredit)" },
+        { "name": "amount", "type": "integer" },
+        { "name": "memo", "type": "string" },
+        { "name": "createdAt", "type": "string(iso8601)" }
+      ]
+    },
+    "Inventory": {
+      "primaryKey": "itemId",
+      "columns": [
+        { "name": "itemId", "type": "string" },
+        { "name": "name", "type": "string" },
+        { "name": "category", "type": "enum(retail,bahan_baku)" },
+        { "name": "unit", "type": "string", "desc": "pcs, ml, gr, dst" },
+        { "name": "stockQty", "type": "number" },
+        { "name": "lowStockThreshold", "type": "number" },
+        { "name": "costPrice", "type": "integer" },
+        { "name": "sellPrice", "type": "integer|null", "desc": "null untuk bahan_baku non-jual" },
+        { "name": "updatedAt", "type": "string(iso8601)" }
+      ]
+    },
+    "Bookings": {
+      "primaryKey": "id",
+      "columns": [
+        { "name": "id", "type": "string(uuid)" },
+        { "name": "customerName", "type": "string" },
+        { "name": "customerPhone", "type": "string|null" },
+        { "name": "stylistId", "type": "string" },
+        { "name": "serviceIds", "type": "json(array<string>)" },
+        { "name": "startAt", "type": "string(iso8601)" },
+        { "name": "endAt", "type": "string(iso8601)" },
+        { "name": "status", "type": "enum(booked,confirmed,checked_in,in_progress,completed,no_show,cancelled)" },
+        { "name": "notes", "type": "string|null" },
+        { "name": "createdAt", "type": "string(iso8601)" }
+      ]
+    },
+    "Employees": {
+      "primaryKey": "id",
+      "columns": [
+        { "name": "id", "type": "string" },
+        { "name": "name", "type": "string" },
+        { "name": "role", "type": "enum(admin,kasir,stylist)" },
+        { "name": "pin", "type": "string(hashed)" },
+        { "name": "defaultCommissionBasis", "type": "enum(percent,fixed)" },
+        { "name": "defaultCommissionValue", "type": "integer" },
+        { "name": "active", "type": "boolean" }
+      ]
+    }
+  },
+  "syncProtocol": {
+    "endpoint": "POST {APPS_SCRIPT_URL}/exec",
+    "request": {
+      "op": "push",
+      "sheet": "Transactions|TransactionItems|JournalEntries|Inventory|Bookings|Employees",
+      "apiKey": "string",
+      "rows": "array<object>"
+    },
+    "response": {
+      "ok": "boolean",
+      "upserted": "integer",
+      "errors": "array<{localId, message}>"
+    },
+    "pull": {
+      "op": "pull",
+      "sheet": "string",
+      "since": "string(iso8601)",
+      "apiKey": "string"
+    }
+  }
+}
