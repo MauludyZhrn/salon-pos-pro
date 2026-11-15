@@ -11,8 +11,8 @@ export function Card({ padded = true, raised = false, style, children, ...rest }
     <View
       style={[
         {
-          backgroundColor: raised ? color.surfaceRaised : color.surface,
-          borderRadius: radius.lg,
+          backgroundColor: color.surface,
+          borderRadius: radius.xl,
           borderWidth: 1,
           borderColor: color.border,
           padding: padded ? spacing.md : 0,

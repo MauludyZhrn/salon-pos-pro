@@ -96,7 +96,7 @@ export function calcTax(subtotal: Rupiah, discountTotal: Rupiah, taxRateBps: num
 }
 
 export interface SplitPaymentLeg {
-  method: "cash" | "midtrans_qris" | "midtrans_cc" | "midtrans_va";
+  method: "cash" | "qris" | "edc" | "midtrans_qris" | "midtrans_cc" | "midtrans_va";
   amount: Rupiah;
 }
 

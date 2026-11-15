@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
-import { View, Text, FlatList, TextInput } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, FlatList, TextInput, Pressable } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useCloud } from "@/services/cloudSync";
 import { Card } from "@/components/common/Card";
+import { ScreenHeader } from "@/components/common/ScreenHeader";
+import { Icon } from "@/components/common/Icon";
 import { Button } from "@/components/common/Button";
-import { color, radius, spacing } from "@/constants/theme";
+import { BottomSheet } from "@/components/common/BottomSheet";
+import { color, font, radius, spacing } from "@/constants/theme";
 import { formatRupiah } from "@/utils/money";
 import { useInventoryStore } from "@/store/inventoryStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { ItemFormModal } from "@/components/inventory/ItemFormModal";
 import type { InventoryItem } from "@/types";
 
 export function InventoryScreen() {
+  const insets = useSafeAreaInsets();
   const { posGridColumns } = useResponsiveLayout();
   const items = useInventoryStore((s) => s.items);
   const lowStockItems = useInventoryStore((s) => s.lowStockItems);
@@ -18,18 +24,32 @@ export function InventoryScreen() {
   const [query, setQuery] = useState("");
   const [adjusting, setAdjusting] = useState<InventoryItem | null>(null);
   const [delta, setDelta] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
 
+  const syncVersion = useCloud((c) => c.version);
   useEffect(() => {
     loadInventory();
-  }, [loadInventory]);
+  }, [loadInventory, syncVersion]);
 
   const filtered = items.filter((i) => i.name.toLowerCase().includes(query.toLowerCase()));
   const columns = Math.max(1, posGridColumns - 1);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color.bg }}>
-      <View style={{ padding: spacing.md }}>
-        <Text style={{ color: color.textPrimary, fontSize: 20, fontWeight: "700" }}>Inventaris</Text>
+    <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: color.bg }}>
+      <ScreenHeader
+        title="Inventaris"
+        right={
+          <Pressable
+            onPress={() => setAddOpen(true)}
+            accessibilityLabel="Tambah produk"
+            style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: color.primary }}
+          >
+            <Icon name="plus" color={color.textOnPrimary} size={20} />
+          </Pressable>
+        }
+      />
+      <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xs }}>
 
         {lowStockItems.length > 0 && (
           <Card style={{ marginTop: spacing.sm, borderColor: color.danger }}>
@@ -65,8 +85,13 @@ export function InventoryScreen() {
         data={filtered}
         keyExtractor={(i) => i.itemId}
         numColumns={columns}
-        contentContainerStyle={{ padding: spacing.md, paddingTop: 0, gap: spacing.sm }}
+        contentContainerStyle={{ padding: spacing.md, paddingTop: 0, paddingBottom: spacing.md + insets.bottom, gap: spacing.sm }}
         columnWrapperStyle={columns > 1 ? { gap: spacing.sm } : undefined}
+        ListEmptyComponent={
+          <Text style={{ color: color.textMuted, textAlign: "center", marginTop: spacing.lg }}>
+            Belum ada produk. Ketuk tombol + di kanan atas.
+          </Text>
+        }
         renderItem={({ item }) => {
           const low = item.stockQty <= item.lowStockThreshold;
           return (
@@ -81,30 +106,34 @@ export function InventoryScreen() {
                 {item.stockQty} {item.unit}
               </Text>
               {item.sellPrice != null && (
-                <Text style={{ color: color.primary, fontSize: 12, marginTop: 2 }}>{formatRupiah(item.sellPrice)}</Text>
+                <Text style={{ color: color.primaryDeep, fontSize: 12, marginTop: 2 }}>{formatRupiah(item.sellPrice)}</Text>
               )}
-              <Button
-                label="Sesuaikan stok"
-                size="sm"
-                variant="secondary"
-                style={{ marginTop: spacing.sm }}
-                onPress={() => {
-                  setAdjusting(item);
-                  setDelta("");
-                }}
-              />
+              <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: spacing.sm }}>
+                <Button
+                  label="Sesuaikan stok"
+                  size="sm"
+                  variant="secondary"
+                  style={{ flex: 1 }}
+                  onPress={() => {
+                    setAdjusting(item);
+                    setDelta("");
+                  }}
+                />
+                <Button label="Edit" size="sm" variant="ghost" onPress={() => setEditingItem(item)} />
+              </View>
             </Card>
           );
         }}
       />
 
-      {adjusting && (
-        <View
-          style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: spacing.lg }}
-        >
-          <Card raised>
-            <Text style={{ color: color.textPrimary, fontWeight: "700", marginBottom: spacing.sm }}>{adjusting.name}</Text>
-            <Text style={{ color: color.textSecondary, fontSize: 12, marginBottom: spacing.xs }}>
+      <ItemFormModal visible={addOpen} onClose={() => setAddOpen(false)} />
+      <ItemFormModal visible={editingItem !== null} item={editingItem} onClose={() => setEditingItem(null)} />
+
+      <BottomSheet visible={adjusting !== null} onClose={() => setAdjusting(null)}>
+        {adjusting && (
+          <View>
+            <Text style={{ color: color.textPrimary, fontFamily: font.display, fontSize: 22, fontWeight: "600" }}>{adjusting.name}</Text>
+            <Text style={{ color: color.textSecondary, fontSize: 12, marginVertical: spacing.sm }}>
               Stok saat ini: {adjusting.stockQty} {adjusting.unit}. Masukkan perubahan (+/-).
             </Text>
             <TextInput
@@ -136,9 +165,9 @@ export function InventoryScreen() {
                 }}
               />
             </View>
-          </Card>
-        </View>
-      )}
+          </View>
+        )}
+      </BottomSheet>
     </SafeAreaView>
   );
 }

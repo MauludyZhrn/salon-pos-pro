@@ -1,38 +1,61 @@
 import { addMoney, calcTax, subtractMoney, type Rupiah } from "./money";
 import { calcLineCommission } from "./commission";
-import type { CartLine, CatalogItem, JournalEntry, Transaction } from "@/types";
+import { newId } from "./id";
+import { evaluateRules } from "./promotions";
+import type { AdjustmentRule, CartLine, CatalogItem, JournalEntry, Transaction } from "@/types";
 
-const TAX_RATE_BPS = 1100; // PPN 11% — configurable in Settings, read from settings store at call site
+const TAX_RATE_BPS = 0; // Tanpa pajak: klien tidak memungut PPN. Kolom tax_total tetap ada (selalu 0).
 
+/**
+ * Membuat satu baris keranjang. `rules` = diskon / promo / biaya tambahan yang berlaku untuk item ini
+ * (lihat rulesForItem). Komisi dihitung dari harga setelah potongan, tanpa biaya tambahan.
+ */
 export function buildCartLine(
   item: CatalogItem,
   qty: number,
   stylistId: string | null,
-  lineDiscount: Rupiah = 0
+  rules: AdjustmentRule[] = []
 ): CartLine {
   const gross = item.price * qty;
-  const lineTotal = subtractMoney(gross, lineDiscount);
+  const { adjustments, discount, extra } = evaluateRules(item.price, qty, rules);
+  const afterDiscount = subtractMoney(gross, discount);
+  const lineTotal = addMoney(afterDiscount, extra);
   const commissionAmount = calcLineCommission({
-    lineTotal,
+    lineTotal: afterDiscount,
     basis: item.commissionBasis,
     value: item.commissionValue,
     qty,
   });
 
   return {
-    lineId: crypto.randomUUID(),
+    lineId: newId(),
     item,
     qty,
     stylistId,
-    lineDiscount,
+    lineDiscount: discount,
+    lineExtra: extra,
+    adjustments,
     lineTotal,
     commissionAmount,
+  };
+}
+
+/** Hitung ulang baris yang sudah ada (qty / stylist / aturan berubah) dengan lineId yang sama. */
+export function rebuildCartLine(
+  line: CartLine,
+  changes: { qty?: number; stylistId?: string | null; rules?: AdjustmentRule[] } = {}
+): CartLine {
+  const rules = changes.rules ?? line.adjustments.map(({ amount: _amount, ...rule }) => rule);
+  return {
+    ...buildCartLine(line.item, changes.qty ?? line.qty, changes.stylistId === undefined ? line.stylistId : changes.stylistId, rules),
+    lineId: line.lineId,
   };
 }
 
 export interface CartTotals {
   subtotal: Rupiah;
   discountTotal: Rupiah;
+  extraTotal: Rupiah;
   taxTotal: Rupiah;
   grandTotal: Rupiah;
   commissionTotal: Rupiah;
@@ -41,9 +64,11 @@ export interface CartTotals {
 export function computeCartTotals(lines: CartLine[], taxRateBps: number = TAX_RATE_BPS): CartTotals {
   const subtotal = addMoney(...lines.map((l) => l.item.price * l.qty));
   const discountTotal = addMoney(...lines.map((l) => l.lineDiscount));
-  const { taxTotal, grandTotal } = calcTax(subtotal, discountTotal, taxRateBps);
+  const extraTotal = addMoney(...lines.map((l) => l.lineExtra));
+  const taxed = calcTax(subtotal, discountTotal, taxRateBps);
+  const grandTotal = addMoney(taxed.grandTotal, extraTotal);
   const commissionTotal = addMoney(...lines.map((l) => l.commissionAmount));
-  return { subtotal, discountTotal, taxTotal, grandTotal, commissionTotal };
+  return { subtotal, discountTotal, extraTotal, taxTotal: taxed.taxTotal, grandTotal, commissionTotal };
 }
 
 /**
@@ -58,7 +83,7 @@ export function buildJournalEntries(tx: Transaction): JournalEntry[] {
   const push = (account: JournalEntry["account"], direction: "debit" | "kredit", amount: Rupiah, memo: string) => {
     if (amount === 0) return;
     entries.push({
-      id: crypto.randomUUID(),
+      id: newId(),
       transactionLocalId: tx.localId,
       date,
       account,

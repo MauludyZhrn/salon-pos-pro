@@ -1,4 +1,5 @@
 import * as SQLite from "expo-sqlite";
+import { SYNC_TABLES } from "./syncTables";
 
 /**
  * Offline-first local DB. SQLite is the system of record; the app NEVER
@@ -99,6 +100,21 @@ async function migrate(db: SQLite.SQLiteDatabase) {
       created_at TEXT NOT NULL
     );
 
+    -- Diskon / promo / biaya tambahan yang dikelola di Pengaturan dan dipasang otomatis ke keranjang.
+    CREATE TABLE IF NOT EXISTS promotions (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('discount','promo','additional')),
+      value_type TEXT NOT NULL CHECK (value_type IN ('percent','fixed')),
+      value INTEGER NOT NULL,
+      scope TEXT NOT NULL CHECK (scope IN ('all','service','retail','items')),
+      item_ids_json TEXT,
+      start_date TEXT,
+      end_date TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS bookings (
       id TEXT PRIMARY KEY,
       customer_name TEXT NOT NULL,
@@ -109,6 +125,32 @@ async function migrate(db: SQLite.SQLiteDatabase) {
       end_at TEXT NOT NULL,
       status TEXT NOT NULL,
       notes TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    -- Membership & loyalty poin: 1x treatment = 10 poin, 100 poin (10x treatment) = 1x gratis treatment.
+    CREATE TABLE IF NOT EXISTS members (
+      id TEXT PRIMARY KEY,
+      member_code TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT,
+      points INTEGER NOT NULL DEFAULT 0,
+      total_treatments INTEGER NOT NULL DEFAULT 0,
+      total_redeemed INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS member_point_logs (
+      id TEXT PRIMARY KEY,
+      member_id TEXT NOT NULL,
+      transaction_local_id TEXT,
+      type TEXT NOT NULL CHECK (type IN ('earn','redeem','adjust')),
+      points_delta INTEGER NOT NULL,
+      treatments_count INTEGER NOT NULL DEFAULT 0,
+      note TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
 
@@ -128,7 +170,71 @@ async function migrate(db: SQLite.SQLiteDatabase) {
     CREATE INDEX IF NOT EXISTS idx_journal_date ON journal_entries(date);
     CREATE INDEX IF NOT EXISTS idx_bookings_start ON bookings(start_at);
     CREATE INDEX IF NOT EXISTS idx_outbox_sheet ON sync_outbox(sheet);
+    CREATE INDEX IF NOT EXISTS idx_member_logs_member ON member_point_logs(member_id);
+
+    -- Cloud (Supabase) replication: triggers record every local change here.
+    CREATE TABLE IF NOT EXISTS sync_meta (k TEXT PRIMARY KEY, v TEXT);
+    CREATE TABLE IF NOT EXISTS sheets_dirty (
+      tbl TEXT NOT NULL,
+      pk TEXT NOT NULL,
+      ts TEXT NOT NULL,
+      PRIMARY KEY (tbl, pk)
+    );
+    CREATE TABLE IF NOT EXISTS sync_dirty (
+      tbl TEXT NOT NULL,
+      pk TEXT NOT NULL,
+      op TEXT NOT NULL,
+      ts TEXT NOT NULL,
+      PRIMARY KEY (tbl, pk)
+    );
   `);
+
+  // Kolom baru untuk database yang sudah ada (CREATE TABLE IF NOT EXISTS tidak menambah kolom).
+  await addColumnIfMissing(db, "transactions", "extra_total", "INTEGER NOT NULL DEFAULT 0");
+  await addColumnIfMissing(db, "transactions", "edited_at", "TEXT");
+  await addColumnIfMissing(db, "transactions", "member_id", "TEXT");
+  await addColumnIfMissing(db, "transactions", "points_earned", "INTEGER NOT NULL DEFAULT 0");
+  await addColumnIfMissing(db, "transactions", "points_redeemed", "INTEGER NOT NULL DEFAULT 0");
+  await addColumnIfMissing(db, "transaction_items", "line_extra", "INTEGER NOT NULL DEFAULT 0");
+  await addColumnIfMissing(db, "transaction_items", "adjustments_json", "TEXT");
+
+  const triggers = Object.entries(SYNC_TABLES)
+    .map(([tbl, pk]) => {
+      const now = "strftime('%Y-%m-%dT%H:%M:%fZ','now')";
+      return `
+        CREATE TRIGGER IF NOT EXISTS sy_i_${tbl} AFTER INSERT ON ${tbl} BEGIN
+          INSERT OR REPLACE INTO sync_dirty (tbl, pk, op, ts) VALUES ('${tbl}', NEW.${pk}, 'u', ${now});
+        END;
+        CREATE TRIGGER IF NOT EXISTS sy_u_${tbl} AFTER UPDATE ON ${tbl} BEGIN
+          INSERT OR REPLACE INTO sync_dirty (tbl, pk, op, ts) VALUES ('${tbl}', NEW.${pk}, 'u', ${now});
+        END;
+        CREATE TRIGGER IF NOT EXISTS sy_d_${tbl} AFTER DELETE ON ${tbl} BEGIN
+          INSERT OR REPLACE INTO sync_dirty (tbl, pk, op, ts) VALUES ('${tbl}', OLD.${pk}, 'd', ${now});
+        END;`;
+    })
+    .join("\n");
+  await db.execAsync(triggers);
+
+  // Google Sheets reporting feed: same idea, separate queue so the two syncs never interfere.
+  const sheetsTriggers = Object.entries(SYNC_TABLES)
+    .map(([tbl, pk]) => {
+      const now = "strftime('%Y-%m-%dT%H:%M:%fZ','now')";
+      return `
+        CREATE TRIGGER IF NOT EXISTS sh_i_${tbl} AFTER INSERT ON ${tbl} BEGIN
+          INSERT OR REPLACE INTO sheets_dirty (tbl, pk, ts) VALUES ('${tbl}', NEW.${pk}, ${now});
+        END;
+        CREATE TRIGGER IF NOT EXISTS sh_u_${tbl} AFTER UPDATE ON ${tbl} BEGIN
+          INSERT OR REPLACE INTO sheets_dirty (tbl, pk, ts) VALUES ('${tbl}', NEW.${pk}, ${now});
+        END;`;
+    })
+    .join("\n");
+  await db.execAsync(sheetsTriggers);
+}
+
+async function addColumnIfMissing(db: SQLite.SQLiteDatabase, table: string, column: string, ddl: string) {
+  const info = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+  if (info.some((c) => c.name === column)) return;
+  await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
 }
 
 /** Run fn inside a single SQLite transaction; rolls back entirely on throw. */

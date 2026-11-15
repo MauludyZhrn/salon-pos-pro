@@ -6,20 +6,27 @@
  * Copy the /exec URL into Settings > Google Sheets Config in the app.
  *
  * Each sheet tab name must match the `sheet` values sent by the app:
- * Transactions, TransactionItems, JournalEntries, Inventory, Bookings, Employees.
- * Row 1 of each tab = header row, matching docs/schema-sync.json column names
- * (snake_case or camelCase both fine, this script reads by header name).
+ * Transactions, TransactionItems, JournalEntries, Inventory, Bookings, Employees, Catalog.
+ * Tabs and header rows are created automatically on the first push; new columns are
+ * appended automatically. Rows are upserted by primary key, so re-sending is safe.
  */
 
-const API_KEY = "REPLACE_WITH_A_LONG_RANDOM_SECRET";
+// Simpan API_KEY di Apps Script > Project Settings > Script Properties (key: API_KEY),
+// atau ganti placeholder di bawah sebelum Deploy sebagai Web App.
+const API_KEY =
+  PropertiesService.getScriptProperties().getProperty("API_KEY") ||
+  "REPLACE_WITH_A_LONG_RANDOM_SECRET";
 
+// The app sends each row with its own column names (snake_case), so these are the
+// primary-key column names of the app's local tables. Employee PIN hashes are never sent.
 const PRIMARY_KEY_COLUMN = {
-  Transactions: "localId",
+  Transactions: "local_id",
   TransactionItems: "id",
   JournalEntries: "id",
-  Inventory: "itemId",
+  Inventory: "item_id",
   Bookings: "id",
   Employees: "id",
+  Catalog: "id",
 };
 
 function doPost(e) {
@@ -61,7 +68,7 @@ function handlePush(body) {
   lock.waitLock(10000);
 
   try {
-    const headers = getHeaders(sheet);
+    const headers = ensureHeaders(sheet, rows);
     const pkIndex = headers.indexOf(pkCol);
     if (pkIndex === -1) throw new Error(`primary key column "${pkCol}" missing from sheet headers`);
 
@@ -133,6 +140,26 @@ function getOrCreateSheet(name, sampleRow) {
     sheet.appendRow(Object.keys(sampleRow));
   }
   return sheet;
+}
+
+function ensureHeaders(sheet, rows) {
+  let headers = getHeaders(sheet);
+  const seen = {};
+  headers.forEach((h) => (seen[h] = true));
+  const missing = [];
+  rows.forEach((r) => {
+    Object.keys(r).forEach((k) => {
+      if (!seen[k]) {
+        seen[k] = true;
+        missing.push(k);
+      }
+    });
+  });
+  if (missing.length) {
+    sheet.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
+    headers = headers.concat(missing);
+  }
+  return headers;
 }
 
 function getHeaders(sheet) {

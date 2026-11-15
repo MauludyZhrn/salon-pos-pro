@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { getDb, withTransaction } from "@/services/database";
 import { enqueueSync } from "@/services/syncQueue";
+import { newId } from "@/utils/id";
 import type { Booking, BookingStatus } from "@/types";
 
 interface BookingState {
@@ -57,7 +58,7 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     }
     const booking: Booking = {
       ...input,
-      id: crypto.randomUUID(),
+      id: newId(),
       status: "booked",
       createdAt: new Date().toISOString(),
     };

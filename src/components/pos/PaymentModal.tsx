@@ -1,11 +1,17 @@
-import { useState } from "react";
-import { Modal, View, Text, TextInput, ScrollView, Alert } from "react-native";
-import { color, radius, spacing } from "@/constants/theme";
+import { useEffect, useState } from "react";
+import { View, Text, TextInput, ScrollView, Alert } from "react-native";
+import { BottomSheet } from "@/components/common/BottomSheet";
+import { color, font, radius, spacing } from "@/constants/theme";
 import { Button } from "@/components/common/Button";
 import { formatRupiah, type Rupiah } from "@/utils/money";
-import { usePosStore } from "@/store/posStore";
-import { createMidtransCharge, awaitMidtransSettlement, midtransOrderIdFor } from "@/services/midtransService";
-import { printReceipt } from "@/services/printerService";
+import { usePosStore, useCartTotals } from "@/store/posStore";
+import { connectPrinter, type PairedPrinter } from "@/services/printerService";
+import { printReceiptFromConfig } from "@/services/receiptPrinter";
+import { PrinterDropdown } from "@/components/printer/PrinterDropdown";
+import { ensureBluetoothPermission, askBluetoothDenied } from "@/services/bluetoothPermissions";
+import { ReceiptPreview } from "@/components/pos/ReceiptPreview";
+import { useReceiptConfig } from "@/hooks/useReceiptConfig";
+import type { Transaction } from "@/types";
 import type { PaymentLeg, PaymentMethod } from "@/types";
 
 interface PaymentModalProps {
@@ -15,20 +21,23 @@ interface PaymentModalProps {
 
 const METHODS: { key: PaymentMethod; label: string }[] = [
   { key: "cash", label: "Tunai" },
-  { key: "midtrans_qris", label: "QRIS" },
-  { key: "midtrans_cc", label: "Kartu" },
-  { key: "midtrans_va", label: "Virtual Account" },
+  { key: "qris", label: "QRIS" },
+  { key: "edc", label: "Kartu (EDC BCA)" },
   { key: "split", label: "Split" },
 ];
 
 export function PaymentModal({ visible, onClose }: PaymentModalProps) {
-  const totals = usePosStore((s) => s.totals());
+  const totals = useCartTotals();
   const checkout = usePosStore((s) => s.checkout);
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [cashReceived, setCashReceived] = useState("");
+  // Uang diterima terisi total saat popup dibuka, supaya bayar pas cukup satu tekan.
+  useEffect(() => {
+    if (visible) setCashReceived(String(totals.grandTotal));
+  }, [visible, totals.grandTotal]);
   const [splitLegs, setSplitLegs] = useState<{ method: Exclude<PaymentMethod, "split">; amount: string }[]>([
     { method: "cash", amount: "" },
-    { method: "midtrans_qris", amount: "" },
+    { method: "qris", amount: "" },
   ]);
   const [processing, setProcessing] = useState(false);
 
@@ -36,11 +45,42 @@ export function PaymentModal({ visible, onClose }: PaymentModalProps) {
   const cashReceivedNum = Number(cashReceived.replace(/\D/g, "")) || 0;
   const change = Math.max(0, cashReceivedNum - grandTotal);
 
+  const [receiptTx, setReceiptTx] = useState<Transaction | null>(null);
+  const [printer, setPrinter] = useState<PairedPrinter | null>(null);
+  const [printing, setPrinting] = useState(false);
+  const receiptCfg = useReceiptConfig(visible);
+
+  function finishSale() {
+    setReceiptTx(null);
+    setCashReceived("");
+    onClose();
+  }
+
+  async function handlePrint() {
+    if (!receiptTx) return;
+    setPrinting(true);
+    try {
+      // Printer wajib dipilih dan terhubung. Tanpa koneksi, library hanya mencatat error ke log
+      // dan struk diam-diam tidak tercetak, jadi jangan tutup popup sebelum benar-benar dikirim.
+      if (!printer) {
+        Alert.alert("Pilih printer dulu", "Pilih printer di atas, lalu tekan Cetak struk lagi. Atau tekan Lewati.");
+        return;
+      }
+      if (!(await ensureBluetoothPermission())) return askBluetoothDenied();
+      await connectPrinter(printer.address);
+      await printReceiptFromConfig(receiptTx, receiptCfg);
+      finishSale();
+    } catch {
+      Alert.alert("Gagal cetak", "Pastikan printer menyala dan terhubung, lalu coba lagi. Atau lewati struk.");
+    } finally {
+      setPrinting(false);
+    }
+  }
+
   async function handleConfirm() {
     setProcessing(true);
     try {
       let breakdown: PaymentLeg[] = [];
-      let midtransOrderId: string | undefined;
 
       if (method === "cash") {
         if (cashReceivedNum < grandTotal) throw new Error("Uang diterima kurang dari total");
@@ -50,27 +90,13 @@ export function PaymentModal({ visible, onClose }: PaymentModalProps) {
           .filter((l) => Number(l.amount) > 0)
           .map((l) => ({ method: l.method, amount: Number(l.amount) }));
       } else {
-        // Midtrans path: create charge, show QR/VA (simplified here to a blocking
-        // await — a full build shows the QRIS code / VA number in-modal while polling).
-        const orderId = midtransOrderIdFor(String(Date.now()));
-        const charge = await createMidtransCharge({ orderId, grossAmount: grandTotal, channel: methodToChannel(method) });
-        const status = await awaitMidtransSettlement(charge.orderId);
-        if (status !== "settlement") throw new Error(`Pembayaran ${status}`);
+        // QRIS fisik dan EDC BCA: pembayaran terjadi di luar app, kasir konfirmasi manual.
         breakdown = [{ method, amount: grandTotal }];
-        midtransOrderId = charge.orderId;
       }
 
-      const tx = await checkout({ paymentMethod: method, paymentBreakdown: breakdown, midtransOrderId });
-
-      try {
-        await printReceipt(tx);
-      } catch {
-        // Printer not connected — non-fatal, transaction already saved & queued for sync.
-        Alert.alert("Transaksi tersimpan", "Struk tidak tercetak (printer belum terhubung).");
-      }
-
-      onClose();
-      setCashReceived("");
+      const tx = await checkout({ paymentMethod: method, paymentBreakdown: breakdown });
+      // Transaction is already saved. Show the receipt step; printing is optional.
+      setReceiptTx(tx);
     } catch (err) {
       Alert.alert("Pembayaran gagal", err instanceof Error ? err.message : String(err));
     } finally {
@@ -80,11 +106,32 @@ export function PaymentModal({ visible, onClose }: PaymentModalProps) {
 
   const splitSum = splitLegs.reduce((s, l) => s + (Number(l.amount) || 0), 0);
 
+  if (receiptTx) {
+    return (
+      <BottomSheet visible={visible} onClose={finishSale}>
+        <View>
+          <Text style={{ color: color.textPrimary, fontFamily: font.display, fontSize: 22, fontWeight: "600", marginBottom: spacing.xs }}>
+            Struk
+          </Text>
+          <Text style={{ color: color.textMuted, fontSize: 12, marginBottom: spacing.md }}>Transaksi tersimpan. Cetak atau lewati.</Text>
+
+          <PrinterDropdown onChange={setPrinter} />
+          <View style={{ height: spacing.md }} />
+          <ReceiptPreview tx={receiptTx} cfg={receiptCfg} />
+
+          <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg }}>
+            <Button label="Lewati" variant="secondary" onPress={finishSale} style={{ flex: 1 }} />
+            <Button label="Cetak struk" loading={printing} onPress={handlePrint} style={{ flex: 2 }} />
+          </View>
+        </View>
+      </BottomSheet>
+    );
+  }
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
-        <View style={{ backgroundColor: color.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg, maxHeight: "90%" }}>
-          <Text style={{ color: color.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: spacing.md }}>
+    <BottomSheet visible={visible} onClose={onClose}>
+        <View>
+          <Text style={{ color: color.textPrimary, fontFamily: font.display, fontSize: 22, fontWeight: "600", marginBottom: spacing.md }}>
             Bayar {formatRupiah(grandTotal)}
           </Text>
 
@@ -118,10 +165,14 @@ export function PaymentModal({ visible, onClose }: PaymentModalProps) {
               </View>
             )}
 
-            {(method === "midtrans_qris" || method === "midtrans_cc" || method === "midtrans_va") && (
+            {method === "qris" && (
               <Text style={{ color: color.textSecondary, fontSize: 13 }}>
-                Tekan konfirmasi untuk membuat kode {method === "midtrans_qris" ? "QRIS" : method === "midtrans_cc" ? "pembayaran kartu" : "Virtual Account"} via Midtrans.
-                Aplikasi akan menunggu status settlement sebelum struk dicetak.
+                Pelanggan scan QRIS toko. Pastikan notifikasi pembayaran {formatRupiah(grandTotal)} sudah masuk, lalu tekan Konfirmasi.
+              </Text>
+            )}
+            {method === "edc" && (
+              <Text style={{ color: color.textSecondary, fontSize: 13 }}>
+                Input nominal {formatRupiah(grandTotal)} di mesin EDC BCA. Tunggu status approved dan slip tercetak, lalu tekan Konfirmasi.
               </Text>
             )}
 
@@ -162,15 +213,8 @@ export function PaymentModal({ visible, onClose }: PaymentModalProps) {
             />
           </View>
         </View>
-      </View>
-    </Modal>
+    </BottomSheet>
   );
-}
-
-function methodToChannel(method: PaymentMethod): "qris" | "credit_card" | "bank_transfer" {
-  if (method === "midtrans_cc") return "credit_card";
-  if (method === "midtrans_va") return "bank_transfer";
-  return "qris";
 }
 
 const inputStyle = {

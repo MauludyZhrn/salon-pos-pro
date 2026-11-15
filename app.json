@@ -3,10 +3,10 @@
     "name": "Salon POS Pro",
     "slug": "salon-pos-pro",
     "scheme": "salonpos",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -20,6 +20,11 @@
     },
     "android": {
       "package": "com.salonpos.app",
+      "icon": "./assets/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F7EBD3"
+      },
       "permissions": [
         "BLUETOOTH",
         "BLUETOOTH_ADMIN",
@@ -37,7 +42,17 @@
           "initialOrientation": "DEFAULT"
         }
       ],
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#F7EBD3"
+        }
+      ]
     ],
     "extra": {
       "router": {},
@@ -45,6 +60,8 @@
         "projectId": "b04a7ad1-0930-47e8-9912-5e5261930e48"
       }
     },
-    "owner": "mldyzhrn"
+    "owner": "mldyzhrn",
+    "runtimeVersion": { "policy": "appVersion" },
+    "updates": { "url": "https://u.expo.dev/b04a7ad1-0930-47e8-9912-5e5261930e48" }
   }
 }

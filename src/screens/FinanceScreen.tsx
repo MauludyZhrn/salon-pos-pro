@@ -1,7 +1,12 @@
 import { useEffect, useMemo } from "react";
-import { View, Text, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useCloud } from "@/services/cloudSync";
+import { useState } from "react";
+import { View, Text, ScrollView, Alert } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card } from "@/components/common/Card";
+import { Button } from "@/components/common/Button";
+import { exportFinanceExcel } from "@/services/exportFinance";
+import { ScreenHeader } from "@/components/common/ScreenHeader";
 import { PnLChart } from "@/components/finance/PnLChart";
 import { CashFlowChart } from "@/components/finance/CashFlowChart";
 import { color, spacing } from "@/constants/theme";
@@ -17,15 +22,31 @@ function last30DaysRange() {
 }
 
 export function FinanceScreen() {
+  const insets = useSafeAreaInsets();
   const { useSidePanel } = useResponsiveLayout();
   const pnlByDay = useFinanceStore((s) => s.pnlByDay);
   const cashFlowByDay = useFinanceStore((s) => s.cashFlowByDay);
   const loadRange = useFinanceStore((s) => s.loadRange);
 
+  const syncVersion = useCloud((c) => c.version);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const { from, to } = last30DaysRange();
+      const saved = await exportFinanceExcel(from, to);
+      if (saved) Alert.alert("Tersimpan", "File Excel laporan keuangan sudah disimpan di folder yang Anda pilih.");
+    } catch (e) {
+      Alert.alert("Gagal export", e instanceof Error ? e.message : String(e));
+    } finally {
+      setExporting(false);
+    }
+  }
   useEffect(() => {
     const { from, to } = last30DaysRange();
     loadRange(from, to);
-  }, [loadRange]);
+  }, [loadRange, syncVersion]);
 
   const summary = useMemo(() => {
     const revenue = addMoney(...pnlByDay.map((d) => addMoney(d.revenueJasa, d.revenueRetail)));
@@ -36,10 +57,13 @@ export function FinanceScreen() {
   }, [pnlByDay, cashFlowByDay]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color.bg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}>
-        <Text style={{ color: color.textPrimary, fontSize: 20, fontWeight: "700" }}>Keuangan</Text>
-        <Text style={{ color: color.textMuted, fontSize: 12 }}>30 hari terakhir</Text>
+    <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: color.bg }}>
+      <ScreenHeader title="Keuangan" />
+      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.md + insets.bottom, gap: spacing.md }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text style={{ color: color.textMuted, fontSize: 12 }}>30 hari terakhir</Text>
+          <Button label="Export Excel" size="sm" variant="secondary" loading={exporting} onPress={handleExport} />
+        </View>
 
         <View style={{ flexDirection: useSidePanel ? "row" : "column", gap: spacing.sm }}>
           <SummaryCard label="Pendapatan" value={summary.revenue} tone="accent" style={{ flex: 1 }} />

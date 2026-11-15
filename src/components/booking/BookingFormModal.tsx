@@ -1,21 +1,31 @@
-import { useState } from "react";
-import { Modal, View, Text, TextInput, Pressable, Alert } from "react-native";
-import { color, radius, spacing } from "@/constants/theme";
+import { useEffect, useState } from "react";
+import { View, Text, TextInput, Pressable, Alert, ScrollView } from "react-native";
+import { BottomSheet } from "@/components/common/BottomSheet";
+import { color, font, radius, spacing } from "@/constants/theme";
 import { Button } from "@/components/common/Button";
 import { useBookingStore } from "@/store/bookingStore";
 
 interface BookingFormModalProps {
   visible: boolean;
-  stylistId: string;
-  stylistName: string;
-  hour: number;
+  stylists: { id: string; name: string }[];
+  initialStylistId: string;
+  initialHour: number;
   date: Date;
   services: { id: string; name: string; durationMinutes: number }[];
   onClose: () => void;
 }
 
 /** New-booking form opened from a calendar slot tap. Validates conflict via bookingStore.hasConflict before insert. */
-export function BookingFormModal({ visible, stylistId, stylistName, hour, date, services, onClose }: BookingFormModalProps) {
+export function BookingFormModal({ visible, stylists, initialStylistId, initialHour, date, services, onClose }: BookingFormModalProps) {
+  const [stylistId, setStylistId] = useState(initialStylistId);
+  const [hour, setHour] = useState(initialHour);
+  useEffect(() => {
+    if (visible) {
+      setStylistId(initialStylistId);
+      setHour(initialHour);
+    }
+  }, [visible, initialStylistId, initialHour]);
+  const HOURS = Array.from({ length: 11 }, (_, i) => 9 + i);
   const createBooking = useBookingStore((s) => s.createBooking);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -73,20 +83,34 @@ export function BookingFormModal({ visible, stylistId, stylistName, hour, date, 
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
-        <View style={{ backgroundColor: color.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg, maxHeight: "90%" }}>
-          <Text style={{ color: color.textPrimary, fontSize: 18, fontWeight: "700" }}>Booking Baru</Text>
+    <BottomSheet visible={visible} onClose={onClose}>
+      <ScrollView keyboardShouldPersistTaps="handled">
+        <View>
+          <Text style={{ color: color.textPrimary, fontFamily: font.display, fontSize: 22, fontWeight: "600" }}>Booking Baru</Text>
           <Text style={{ color: color.textMuted, fontSize: 12, marginTop: 2, marginBottom: spacing.md }}>
-            {stylistName} · {String(hour).padStart(2, "0")}:00 · {date.toLocaleDateString("id-ID")}
+            {date.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
           </Text>
+
+          <Text style={{ color: color.textSecondary, fontSize: 13, marginBottom: spacing.xs }}>Stylist</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+            {stylists.map((st) => (
+              <Chip key={st.id} active={stylistId === st.id} text={st.name} onPress={() => setStylistId(st.id)} />
+            ))}
+          </View>
+
+          <Text style={{ color: color.textSecondary, fontSize: 13, marginTop: spacing.md, marginBottom: spacing.xs }}>Jam mulai</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
+            {HOURS.map((h) => (
+              <Chip key={h} active={hour === h} text={`${String(h).padStart(2, "0")}:00`} onPress={() => setHour(h)} />
+            ))}
+          </ScrollView>
 
           <TextInput
             value={customerName}
             onChangeText={setCustomerName}
             placeholder="Nama pelanggan"
             placeholderTextColor={color.textMuted}
-            style={inputStyle}
+            style={[inputStyle, { marginTop: spacing.md }]}
           />
           <TextInput
             value={customerPhone}
@@ -142,8 +166,26 @@ export function BookingFormModal({ visible, stylistId, stylistName, hour, date, 
             <Button label="Simpan Booking" loading={saving} style={{ flex: 2 }} onPress={handleSave} />
           </View>
         </View>
-      </View>
-    </Modal>
+      </ScrollView>
+    </BottomSheet>
+  );
+}
+
+function Chip({ active, text, onPress }: { active: boolean; text: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 7,
+        borderRadius: radius.pill,
+        backgroundColor: active ? color.primary : color.surface,
+        borderWidth: 1,
+        borderColor: active ? color.primary : color.borderStrong,
+      }}
+    >
+      <Text style={{ color: active ? color.textOnPrimary : color.textSecondary, fontSize: 12, fontWeight: "600" }}>{text}</Text>
+    </Pressable>
   );
 }
 

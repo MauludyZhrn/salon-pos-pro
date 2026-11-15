@@ -1,41 +1,18 @@
 import { getDb } from "./database";
 
 /**
- * Dev/demo seed: one employee of each role (PIN "1111" for all — hash
- * matches the DJB2-style hashPin in authStore.ts), a starter catalog with
- * BOM links into inventory, and inventory rows with a low-stock example.
- * Safe to call repeatedly — uses INSERT OR IGNORE.
+ * Seeds starter catalog + inventory only. Employees are NOT seeded: the
+ * first-run screen (app/index.tsx) creates the owner account.
+ * Safe to call repeatedly: skipped once any catalog row exists.
  */
 export async function seedIfEmpty(): Promise<void> {
   const db = await getDb();
-  const row = await db.getFirstAsync<{ cnt: number }>("SELECT COUNT(*) as cnt FROM employees");
+  const row = await db.getFirstAsync<{ cnt: number }>("SELECT COUNT(*) as cnt FROM catalog_items");
   if (row && row.cnt > 0) return;
 
-  const PIN_HASH_1111 = await hashPinLocal("1111");
   const now = new Date().toISOString();
 
   await db.withTransactionAsync(async () => {
-    await db.runAsync(
-      `INSERT OR IGNORE INTO employees (id, name, role, pin_hash, default_commission_basis, default_commission_value, active)
-       VALUES (?,?,?,?,?,?,1)`,
-      ["admin-1", "Zahra (Owner)", "admin", PIN_HASH_1111, "percent", 0]
-    );
-    await db.runAsync(
-      `INSERT OR IGNORE INTO employees (id, name, role, pin_hash, default_commission_basis, default_commission_value, active)
-       VALUES (?,?,?,?,?,?,1)`,
-      ["kasir-1", "Sari", "kasir", PIN_HASH_1111, "percent", 0]
-    );
-    await db.runAsync(
-      `INSERT OR IGNORE INTO employees (id, name, role, pin_hash, default_commission_basis, default_commission_value, active)
-       VALUES (?,?,?,?,?,?,1)`,
-      ["stylist-1", "Rani", "stylist", PIN_HASH_1111, "percent", 3000]
-    );
-    await db.runAsync(
-      `INSERT OR IGNORE INTO employees (id, name, role, pin_hash, default_commission_basis, default_commission_value, active)
-       VALUES (?,?,?,?,?,?,1)`,
-      ["stylist-2", "Dimas", "stylist", PIN_HASH_1111, "fixed", 25000]
-    );
-
     const inventory: [string, string, "retail" | "bahan_baku", string, number, number, number, number | null][] = [
       ["inv-shampoo-1l", "Shampoo Professional 1L", "bahan_baku", "ml", 4000, 1000, 180000, null],
       ["inv-color-tube", "Color Cream Tube 60g", "bahan_baku", "g", 1800, 600, 45000, null],
@@ -65,17 +42,8 @@ export async function seedIfEmpty(): Promise<void> {
         [id, type, name, category, price, duration, basis, value, consumes ? JSON.stringify(consumes) : null]
       );
     }
+    // Starter data must not count as a local change: a second device would
+    // otherwise push its seed over edits already made on the first device.
+    await db.runAsync("DELETE FROM sync_dirty WHERE tbl IN ('catalog_items','inventory')");
   });
-}
-
-// Mirrors authStore.hashPin exactly — kept in sync manually since it's a
-// throwaway dev hash (see README "Security hardening" to replace both with
-// expo-crypto SHA-256 in one pass).
-async function hashPinLocal(pin: string): Promise<string> {
-  let hash = 0;
-  for (let i = 0; i < pin.length; i++) {
-    hash = (hash << 5) - hash + pin.charCodeAt(i);
-    hash |= 0;
-  }
-  return `v1:${hash}`;
 }

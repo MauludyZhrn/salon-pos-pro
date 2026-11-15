@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { getDb } from "@/services/database";
+import { useCloud } from "@/services/cloudSync";
 import type { CatalogItem } from "@/types";
 
 function rowToCatalogItem(row: any): CatalogItem {
@@ -22,6 +23,7 @@ function rowToCatalogItem(row: any): CatalogItem {
 export function useCatalog() {
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const syncVersion = useCloud((c) => c.version);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -33,7 +35,7 @@ export function useCatalog() {
 
   useEffect(() => {
     reload();
-  }, [reload]);
+  }, [reload, syncVersion]);
 
   return { items, loading, reload };
 }

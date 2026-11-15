@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { color, radius, spacing } from "@/constants/theme";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { STATUS_LABEL } from "@/utils/bookingLabels";
 import type { Booking, BookingStatus } from "@/types";
 
 interface CalendarViewProps {
@@ -102,7 +103,7 @@ export function CalendarView({ date, bookings, stylists, onSlotPress, onBookingP
                         padding: 4,
                       }}
                     >
-                      <Text numberOfLines={2} style={{ color: "#0B0B0D", fontSize: 11, fontWeight: "600" }}>
+                      <Text numberOfLines={2} style={{ color: color.textPrimary, fontSize: 11, fontWeight: "600" }}>
                         {b.customerName}
                       </Text>
                     </Pressable>
@@ -148,7 +149,7 @@ export function CalendarView({ date, bookings, stylists, onSlotPress, onBookingP
                 {start.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} · {b.customerName}
               </Text>
               <Text style={{ color: color.textMuted, fontSize: 12, marginTop: 2 }}>
-                {stylist?.name ?? b.stylistId} · {b.status}
+                {stylist?.name ?? b.stylistId} · {STATUS_LABEL[b.status]}
               </Text>
             </View>
           </Pressable>

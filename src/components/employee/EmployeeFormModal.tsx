@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { Modal, View, Text, TextInput, Pressable, Alert } from "react-native";
+import { View, Text, TextInput, Pressable, Alert, ScrollView } from "react-native";
 import { color, radius, spacing } from "@/constants/theme";
 import { Button } from "@/components/common/Button";
+import { BottomSheet } from "@/components/common/BottomSheet";
 import { getDb } from "@/services/database";
 import { enqueueSync } from "@/services/syncQueue";
+import { useAuthStore } from "@/store/authStore";
 import type { Employee, Role } from "@/types";
 
 interface EmployeeFormModalProps {
@@ -26,17 +28,20 @@ async function hashPin(pin: string): Promise<string> {
 
 /** Create/edit employee: name, role (RBAC), PIN, default commission basis/value. */
 export function EmployeeFormModal({ visible, employee, onClose, onSaved }: EmployeeFormModalProps) {
+  const currentEmployee = useAuthStore((s) => s.currentEmployee);
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("stylist");
   const [pin, setPin] = useState("");
   const [basis, setBasis] = useState<"percent" | "fixed">("percent");
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
+  const [active, setActive] = useState(true);
 
   useEffect(() => {
     if (employee) {
       setName(employee.name);
       setRole(employee.role);
+      setActive(employee.active);
       setPin("");
       setBasis(employee.defaultCommissionBasis);
       setValue(
@@ -46,6 +51,7 @@ export function EmployeeFormModal({ visible, employee, onClose, onSaved }: Emplo
       );
     } else {
       setName("");
+      setActive(true);
       setRole("stylist");
       setPin("");
       setBasis("percent");
@@ -64,11 +70,22 @@ export function EmployeeFormModal({ visible, employee, onClose, onSaved }: Emplo
       const db = await getDb();
       const id = employee?.id ?? `emp-${Date.now()}`;
 
+      if (employee && employee.role === "admin" && (role !== "admin" || !active)) {
+        const others = await db.getFirstAsync<{ cnt: number }>(
+          "SELECT COUNT(*) as cnt FROM employees WHERE role = 'admin' AND active = 1 AND id != ?",
+          [id]
+        );
+        if (!others || others.cnt === 0) {
+          Alert.alert("Tidak bisa", "Harus ada minimal satu admin aktif. Jadikan karyawan lain admin dulu.");
+          return;
+        }
+      }
+
       if (employee) {
         const pinHash = pin ? await hashPin(pin) : employee.pinHash;
         await db.runAsync(
-          `UPDATE employees SET name = ?, role = ?, pin_hash = ?, default_commission_basis = ?, default_commission_value = ? WHERE id = ?`,
-          [name.trim(), role, pinHash, basis, commissionValue, id]
+          `UPDATE employees SET name = ?, role = ?, pin_hash = ?, default_commission_basis = ?, default_commission_value = ?, active = ? WHERE id = ?`,
+          [name.trim(), role, pinHash, basis, commissionValue, active ? 1 : 0, id]
         );
       } else {
         const pinHash = await hashPin(pin);
@@ -101,10 +118,68 @@ export function EmployeeFormModal({ visible, employee, onClose, onSaved }: Emplo
     }
   }
 
+  async function handleDelete() {
+    if (!employee) return;
+    if (currentEmployee?.id === employee.id) {
+      return Alert.alert("Tidak bisa dihapus", "Akun yang sedang dipakai tidak bisa dihapus. Masuk sebagai admin lain dulu.");
+    }
+    const db = await getDb();
+
+    if (employee.role === "admin") {
+      const others = await db.getFirstAsync<{ c: number }>(
+        "SELECT COUNT(*) AS c FROM employees WHERE role = 'admin' AND active = 1 AND id <> ?",
+        [employee.id]
+      );
+      if (!others || others.c === 0) {
+        return Alert.alert("Tidak bisa dihapus", "Harus ada minimal satu admin aktif.");
+      }
+    }
+
+    const refs = await db.getFirstAsync<{ c: number }>(
+      `SELECT (SELECT COUNT(*) FROM transactions WHERE cashier_id = ?)
+            + (SELECT COUNT(*) FROM transaction_items WHERE stylist_id = ?)
+            + (SELECT COUNT(*) FROM bookings WHERE stylist_id = ?) AS c`,
+      [employee.id, employee.id, employee.id]
+    );
+
+    if (refs && refs.c > 0) {
+      // Hard delete would orphan sales, commission and booking history.
+      Alert.alert(
+        "Punya riwayat",
+        `${employee.name} tercatat di ${refs.c} transaksi/booking. Dihapus akan merusak laporan dan komisi, jadi nonaktifkan saja.`,
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Nonaktifkan",
+            onPress: async () => {
+              await db.runAsync("UPDATE employees SET active = 0 WHERE id = ?", [employee.id]);
+              onSaved();
+              onClose();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    Alert.alert("Hapus karyawan?", `${employee.name} akan dihapus permanen.`, [
+      { text: "Batal", style: "cancel" },
+      {
+        text: "Hapus",
+        style: "destructive",
+        onPress: async () => {
+          await db.runAsync("DELETE FROM employees WHERE id = ?", [employee.id]);
+          onSaved();
+          onClose();
+        },
+      },
+    ]);
+  }
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: spacing.lg }}>
-        <View style={{ backgroundColor: color.surface, borderRadius: 20, padding: spacing.lg, borderWidth: 1, borderColor: color.border }}>
+    <BottomSheet visible={visible} onClose={onClose}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View>
           <Text style={{ color: color.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: spacing.md }}>
             {employee ? "Edit Karyawan" : "Tambah Karyawan"}
           </Text>
@@ -190,13 +265,31 @@ export function EmployeeFormModal({ visible, employee, onClose, onSaved }: Emplo
             style={inputStyle}
           />
 
+          {employee && (
+            <Button
+              label={active ? "Nonaktifkan karyawan" : "Aktifkan kembali"}
+              variant="ghost"
+              fullWidth
+              style={{ marginTop: spacing.sm }}
+              onPress={() => setActive((a) => !a)}
+            />
+          )}
+          {employee && !active && (
+            <Text style={{ color: color.danger, fontSize: 12, textAlign: "center" }}>
+              Nonaktif: tidak bisa login dan tidak muncul di pilihan stylist. Tekan Simpan untuk menerapkan.
+            </Text>
+          )}
+
           <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg }}>
             <Button label="Batal" variant="secondary" style={{ flex: 1 }} onPress={onClose} />
             <Button label="Simpan" loading={saving} style={{ flex: 1 }} onPress={handleSave} />
           </View>
+          {employee && (
+            <Button label="Hapus karyawan" variant="danger" fullWidth style={{ marginTop: spacing.sm }} onPress={handleDelete} />
+          )}
         </View>
-      </View>
-    </Modal>
+      </ScrollView>
+    </BottomSheet>
   );
 }
 

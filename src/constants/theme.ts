@@ -1,37 +1,51 @@
+import { Platform } from "react-native";
+
 /**
- * Design tokens — single source of truth for color, spacing, type.
- * Palette: "Warm Atelier" — charcoal surfaces, muted gold accent, sage for
- * positive states. Deliberately avoids default RN-blue / purple-gradient
- * "AI slop" palettes.
+ * Design tokens. Palette "Loyal Pink": rose #E981A4, orchid #F4C5D7,
+ * blush #F9ADB7, peach #FEC9C3, cream #FAF2DD. Text is a deep plum, never
+ * pure black, so the pinks stay warm. White on rose fails contrast, so
+ * filled rose surfaces carry plum text (textOnPrimary) and rose used as TEXT
+ * on light surfaces is the deeper primaryDeep.
  */
 
 export const color = {
-  bg: "#0F0F12",
-  surface: "#17171C",
-  surfaceAlt: "#1F1F26",
-  surfaceRaised: "#232329",
-  border: "#2A2A33",
-  borderStrong: "#35353F",
+  bg: "#FBF4E6", // cream, a touch lighter than #FAF2DD
+  surface: "#FFFFFF",
+  surfaceAlt: "#FDF1EE", // blush tint: inputs, inactive chips
+  surfaceRaised: "#FFFFFF",
+  border: "#F1DFD8",
+  borderStrong: "#E7C9C9",
 
-  primary: "#C9A24B", // muted gold — CTAs, active states
-  primaryMuted: "#8A702F",
-  primaryOn: "#1A1506",
+  primary: "#E981A4", // rose: fills, active icons
+  primaryDeep: "#BE4A78", // rose as text / pressed fill (4.5:1 on white)
+  primaryMuted: "#F9ADB7", // blush
+  primarySoft: "#F4C5D7", // orchid
+  peach: "#FEC9C3",
+  cream: "#FAF2DD",
+  primaryOn: "#3B1526",
 
-  accent: "#5B8C73", // sage — success / paid / in-stock
-  accentOn: "#0C1710",
+  accent: "#4F8F6B", // sage: success / paid / revenue
+  accentOn: "#FFFFFF",
 
-  danger: "#C25B4A", // terracotta — errors, low stock
-  dangerOn: "#1C0A06",
+  danger: "#C2384D",
+  dangerOn: "#FFFFFF",
 
-  warn: "#D6A24C",
-  warnOn: "#1C1304",
+  warn: "#D9953E",
+  warnOn: "#3B1526",
 
-  info: "#6C8CB0",
+  info: "#6E80B3",
 
-  textPrimary: "#F4F3EF",
-  textSecondary: "#A6A5AD",
-  textMuted: "#6B6A74",
-  textOnPrimary: "#17140A",
+  textPrimary: "#3B1526",
+  textSecondary: "#7A5566",
+  textMuted: "#9A7A89",
+  textOnPrimary: "#3B1526",
+
+  scrim: "rgba(59,21,38,0.45)",
+} as const;
+
+/** Serif for titles and prices: Georgia on iOS, the system serif (Noto Serif) on Android. No font files to load. */
+export const font = {
+  display: Platform.select({ ios: "Georgia", default: "serif" }) as string,
 } as const;
 
 export const spacing = {
@@ -48,7 +62,7 @@ export const radius = {
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 20,
+  xl: 22,
   pill: 999,
 } as const;
 
@@ -64,16 +78,16 @@ export const type = {
 
 export const elevation = {
   card: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: "#B8607F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 2,
   },
   modal: {
-    shadowColor: "#000",
+    shadowColor: "#3B1526",
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.2,
     shadowRadius: 24,
     elevation: 12,
   },

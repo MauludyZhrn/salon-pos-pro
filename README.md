@@ -1,151 +1,198 @@
 # Salon POS Pro
 
-Aplikasi Kasir (POS) + Manajemen Salon + Finance Profesional. Expo/React
-Native, offline-first (SQLite lokal), sync berkala ke Google Sheets via
-Apps Script. Responsif penuh Portrait ↔ Landscape, phone ↔ tablet.
+Aplikasi kasir (POS), manajemen salon, membership loyalitas, booking jadwal, inventaris, dan pembukuan keuangan berbasis **Expo / React Native**. Dirancang **offline-first** menggunakan SQLite lokal sebagai sumber data utama, dilengkapi sinkronisasi multi-perangkat via **Supabase**, laporan **Google Sheets**, ekspor **Excel (.xlsx)**, serta cetak struk thermal Bluetooth (**ESC/POS**). Antarmuka responsif untuk mode **Portrait ↔ Landscape** pada smartphone maupun tablet.
+
+---
+
+## Fitur Utama
+
+- **Kasir (POS) & Keranjang**
+  - Katalog layanan (`service`) dan produk retail (`retail`) dengan pencarian, filter kategori, dan penyesuaian grid otomatis (`useResponsiveLayout`).
+  - Pilihan stylist per layanan untuk perhitungan komisi otomatis.
+  - Promo, diskon, dan biaya tambahan otomatis sesuai periode (`Settings > Promo, diskon & biaya tambahan`).
+  - Metode pembayaran **Tunai**, **QRIS**, **Kartu (EDC BCA)**, dan **Split Payment** (serta kerangka integrasi **Midtrans** di `backend-midtrans/`).
+- **Membership & Poin Loyalitas (`Profil > Membership & Poin`)**
+  - **1x treatment = 10 poin**; produk retail tidak dihitung sebagai poin treatment.
+  - **100 poin (10x treatment) = Gratis 1x treatment** yang bisa ditukar langsung di keranjang kasir (memotong 1 unit layanan 100%) atau diklaim dari halaman Membership.
+  - Kartu visual **10-Stamp Treatment**, kode member otomatis (`MBR-0001`, dst.), catatan riwayat poin (`member_point_logs`), dan pembalikan poin otomatis bila transaksi di-*void*.
+- **Booking Jadwal Stylist**
+  - Tampilan agenda harian (smartphone) dan grid kolom per stylist (tablet/landscape).
+  - Deteksi bentrok jadwal per stylist dan pelacakan status (`booked`, `confirmed`, `checked_in`, `in_progress`, `completed`, `no_show`, `cancelled`).
+- **Riwayat & Koreksi Transaksi (`Profil > Riwayat Transaksi`)**
+  - Filter periode (`Hari ini`, `7 hari`, `30 hari`, `Semua`), pencarian nomor struk/pelanggan, pratinjau & cetak ulang struk, serta koreksi transaksi untuk role yang berhak (`admin`).
+- **Keuangan & Ekspor Excel (`Profil > Keuangan`)**
+  - Jurnal akuntansi *double-entry* otomatis (`kas`, `piutang`, `pendapatan_jasa`, `pendapatan_retail`, `hpp_retail`, `hpp_bahan`, `beban_komisi`, `beban_operasional`, `hutang_komisi`).
+  - Grafik **Laba Rugi (PnL)** dan **Arus Kas Harian** menggunakan `victory-native` + `@shopify/react-native-skia`.
+  - Ekspor laporan 30 hari terakhir ke file `.xlsx`.
+- **Layanan, Inventaris, Karyawan & RBAC**
+  - Pengelolaan menu layanan beserta BOM (*bill of materials*) untuk pengurangan stok bahan baku otomatis saat transaksi.
+  - Pengaturan komisi default (persentase basis poin / nominal tetap) dan akses berbasis role (**Admin**, **Kasir**, **Stylist**).
+  - Login cepat dengan **PIN 4 digit** (setup akun Owner saat aplikasi pertama kali dijalankan).
+- **Printer Thermal Bluetooth & Struk (`Profil > Printer & Struk`)**
+  - Dukungan kertas **58 mm** (32 karakter) dan **80 mm** (48 karakter), logo hitam-putih 1-bit pada struk, serta info poin member.
+- **Sinkronisasi Cloud & Google Sheets**
+  - **Cloud Multi-Device (Supabase)**: replikasi tabel lokal (`sync_dirty` → `sync_rows`) antar perangkat kasir dan owner.
+  - **Google Sheets (Apps Script)**: pengiriman laporan satu arah (`sheets_dirty` → Google Sheets tabs) secara otomatis saat online.
+
+---
+
+## Teknologi
+
+| Komponen | Paket / Layanan |
+| --- | --- |
+| Framework | Expo SDK 57 (`~57.0.33`), React Native `0.86.3`, React `19.2.3` |
+| Navigasi | `expo-router` (`~57.0.31`) |
+| Styling | NativeWind v4 (`^4.2.7`) + Tailwind CSS v3 + tema token `Loyal Pink` |
+| State Management | Zustand (`^5.0.15`) |
+| Database Lokal | `expo-sqlite` (`~57.0.5`) — mode WAL, offline-first |
+| Grafik & Export | `victory-native`, `@shopify/react-native-skia`, `xlsx` |
+| Printer Thermal | `react-native-thermal-receipt-printer-image-qr` (dengan `patch-package`) |
+| Build & OTA | EAS Build & EAS Update (`eas.json`) |
+
+---
 
 ## Struktur Folder
 
-```
-salon-pos-app/
-├── app/                          # expo-router routes
-│   ├── _layout.tsx                # root: init DB, seed, sync listener
-│   ├── index.tsx                  # PIN login screen
-│   └── (tabs)/
-│       ├── _layout.tsx            # tab bar, filtered by RBAC role
-│       ├── pos.tsx
-│       ├── booking.tsx
-│       ├── finance.tsx
-│       ├── inventory.tsx
-│       ├── employees.tsx
-│       └── settings.tsx
+```text
+.
+├── app/                              # File-based routing (Expo Router)
+│   ├── _layout.tsx                   # Inisialisasi SQLite, seed, cloud sync, dan store
+│   ├── index.tsx                     # Layar login PIN / setup Owner awal
+│   ├── (tabs)/
+│   │   ├── _layout.tsx               # Tab bar utama (RBAC-filtered)
+│   │   ├── pos.tsx                   # Tab Kasir
+│   │   ├── booking.tsx               # Tab Booking
+│   │   ├── cart.tsx                  # Tab Keranjang
+│   │   └── more.tsx                  # Tab Profil (menu sekunder)
+│   ├── membership.tsx                # Halaman Membership & Poin
+│   ├── employees.tsx                 # Halaman Karyawan & Komisi
+│   ├── history.tsx                   # Halaman Riwayat Transaksi
+│   ├── finance.tsx                   # Halaman Keuangan & Export Excel
+│   ├── services.tsx                  # Halaman Manajemen Layanan
+│   ├── printer.tsx                   # Halaman Printer & Pengaturan Struk
+│   ├── inventory.tsx                 # Halaman Inventaris
+│   └── settings.tsx                  # Halaman Pengaturan, Promo, Cloud & Sheets
 ├── src/
-│   ├── components/
-│   │   ├── pos/ProductGrid.tsx, CartPanel.tsx, PaymentModal.tsx
-│   │   ├── booking/CalendarView.tsx
-│   │   ├── finance/PnLChart.tsx, CashFlowChart.tsx
-│   │   └── common/Button.tsx, Card.tsx
-│   ├── hooks/
-│   │   ├── useResponsiveLayout.ts  # orientation/column-count math
-│   │   └── useCatalog.ts
-│   ├── screens/                    # full-screen compositions used by app/
-│   ├── services/
-│   │   ├── database.ts             # SQLite schema + migrations
-│   │   ├── syncQueue.ts            # offline outbox + push to Apps Script
-│   │   ├── printerService.ts       # ESC/POS Bluetooth thermal printing
-│   │   └── midtransService.ts      # payment gateway client contract
-│   ├── store/                      # zustand: auth, pos, inventory, booking, finance
-│   ├── utils/
-│   │   ├── money.ts                # integer-Rupiah arithmetic, no floats
-│   │   ├── commission.ts
-│   │   └── transaction.ts          # cart → totals → journal entries
-│   ├── constants/theme.ts          # design tokens
-│   └── types/index.ts
-├── google-apps-script/Code.gs      # paste into Apps Script editor
-├── backend-midtrans/                # Express backend holding Midtrans Server Key
-│   ├── server.js
-│   ├── package.json
-│   └── .env.example
+│   ├── components/                   # Komponen UI per modul (booking, catalog, common, employee, finance, history, inventory, member, pos, printer, promo)
+│   ├── constants/                    # Design tokens (theme.ts) & konfigurasi Supabase (cloud.ts)
+│   ├── hooks/                        # useCatalog, useReceiptConfig, useResponsiveLayout, useStylists, useTodaySales
+│   ├── screens/                      # Implementasi layar
+│   ├── services/                     # SQLite database, cloudSync, syncQueue, printer, exportFinance, transactionRepo
+│   ├── store/                        # Zustand stores (auth, booking, finance, inventory, member, pos, promo)
+│   ├── types/                        # Definisi tipe TypeScript
+│   └── utils/                        # Aritmetika uang integer (money.ts), membership, promo, komisi, struk, excel
+├── google-apps-script/
+│   └── Code.gs                       # Script Google Apps Script untuk sinkronisasi Google Sheets
+├── supabase/
+│   └── schema.sql                    # Skema tabel & RLS policy `public.sync_rows` di Supabase
+├── backend-midtrans/                 # Server Express opsional untuk integrasi Midtrans Core API
 ├── docs/
-│   ├── flowchart-keuangan.md       # Mermaid: POS → jurnal → PnL
-│   └── schema-sync.json            # full sync schema, all sheets/columns
-├── app.json / package.json / tsconfig.json / babel.config.js / tailwind.config.js
+│   ├── flowchart-keuangan.md         # Alur POS → jurnal → PnL
+│   └── schema-sync.json              # Referensi skema sinkronisasi
+├── patches/                          # Patch native library printer thermal (`patch-package`)
+├── tools/
+│   └── make-logo.py                  # Utilitas konversi logo ke PNG 1-bit untuk printer thermal
+├── app.json
+└── eas.json
 ```
 
-Flowchart lengkap: lihat `docs/flowchart-keuangan.md`.
-Skema sync lengkap: lihat `docs/schema-sync.json`.
+---
 
-## Instalasi
+## Prasyarat & Instalasi
+
+1. **Node.js** (LTS), **npm**, dan **Expo / EAS CLI**.
+2. Clone repository lalu instal dependensi:
 
 ```bash
-npx create-expo-app@latest salon-pos-app --template blank-typescript
-# lalu copy seluruh isi folder ini (app/, src/, google-apps-script/, docs/,
-# app.json, babel.config.js, tailwind.config.js, global.css) menimpa hasil create-expo-app
-
-npx expo install expo-router expo-screen-orientation expo-sqlite expo-print \
-  expo-constants expo-status-bar expo-haptics expo-linking \
-  react-native-safe-area-context react-native-screens react-native-gesture-handler \
-  react-native-reanimated react-native-svg
-
-npm install zustand nativewind tailwindcss @react-native-async-storage/async-storage \
-  @react-native-community/netinfo date-fns zod \
-  react-native-bluetooth-escpos-printer react-native-calendars victory-native
-
-npx tailwindcss init   # only if tailwind.config.js wasn't copied over correctly
+git clone https://github.com/MauludyZhrn/salon-pos-pro.git
+cd salon-pos-pro
+npm install
 ```
 
-> `react-native-bluetooth-escpos-printer` dan beberapa modul native lain
-> **tidak** jalan di Expo Go — build dev client:
-> ```bash
-> npx expo install expo-dev-client
-> npx expo prebuild
-> npx expo run:android   # atau: eas build --profile development --platform android
-> ```
+> File `.npmrc` sudah menyertakan `legacy-peer-deps=true` dan `package.json` menjalankan `patch-package` pada tahap `postinstall`.
 
-## Menjalankan
+3. **Typecheck**:
+
+```bash
+npx tsc --noEmit
+```
+
+---
+
+## Menjalankan & Build (Expo / EAS)
+
+Karena aplikasi menggunakan modul native seperti `expo-sqlite`, `@shopify/react-native-skia`, dan `react-native-thermal-receipt-printer-image-qr`, aplikasi dijalankan menggunakan **Development Build** (bukan Expo Go standar).
+
+### 1. Menjalankan Dev Server Lokal
 
 ```bash
 npx expo start --dev-client
 ```
 
-Login demo: pilih karyawan apa saja di PIN pad, PIN = `1111` (lihat
-`src/services/seed.ts`). Data katalog, inventaris, dan karyawan contoh
-di-seed otomatis saat database kosong.
+Atau jalankan native build lokal Android:
 
-## Menguji Responsivitas Portrait/Landscape
+```bash
+npx expo run:android
+```
 
-1. Buka tab **Kasir** di emulator/device tablet.
-2. Putar orientasi (Ctrl+F11 di Android emulator, atau rotasi device fisik).
-3. Perhatikan:
-   - `posGridColumns` berubah (2 kolom di phone sempit → 5 kolom di tablet landscape) — lihat `src/hooks/useResponsiveLayout.ts`.
-   - Di landscape lebar ≥700px, keranjang (`CartPanel`) pindah dari bottom-sheet menjadi side-rail tetap (`useSidePanel`).
-   - Tab **Booking**: kalender berubah dari agenda list (phone) ke grid kolom-per-stylist (tablet/landscape) — `useWideCalendar`.
-4. Tidak perlu reload manual — `useWindowDimensions` dari React Native sudah reaktif terhadap rotasi, jadi re-render terjadi otomatis pada frame yang sama dengan perubahan dimensi.
+### 2. Build APK via EAS
 
-Untuk mengunci orientasi per-layar (misal POS selalu landscape di tablet
-kasir), panggil `useOrientationLock(ScreenOrientation.OrientationLock.LANDSCAPE)`
-di dalam screen tersebut — lihat komentar di `useResponsiveLayout.ts`.
+Konfigurasi profil build tersedia di `eas.json` (`development`, `preview`, `production`):
 
-## Menguji Integrasi Google Sheets
+```bash
+# Build development client Android (APK)
+npx eas-cli build --profile development --platform android
 
-1. Buka Google Sheets baru → Extensions → Apps Script.
-2. Paste isi `google-apps-script/Code.gs`.
-3. Ganti `API_KEY` dengan secret acak yang panjang.
-4. Deploy → New deployment → Web app → Execute as **Me**, Access **Anyone**.
-5. Copy URL `/exec` yang dihasilkan.
-6. Di app: tab **Pengaturan** → isi URL dan API Key → **Simpan**.
-7. Lakukan transaksi POS apa saja → buka tab **Pengaturan** → **Sync sekarang** (atau tunggu auto-sync saat reconnect jaringan).
-8. Cek Google Sheets: tab `Transactions`, `TransactionItems`, `JournalEntries` otomatis terbuat dan terisi.
-9. Uji offline: aktifkan mode pesawat, lakukan transaksi (tetap tersimpan lokal), nonaktifkan mode pesawat → sync otomatis berjalan via `NetInfo` listener di `syncQueue.ts`.
+# Build internal preview Android (APK)
+npx eas-cli build --profile preview --platform android
+```
 
-## Keamanan — hal yang WAJIB diganti sebelum produksi
+### 3. Mengirim Update OTA (EAS Update)
 
-- **PIN hashing**: `authStore.ts` dan `seed.ts` memakai hash DJB2 sederhana
-  (bukan kriptografis) supaya skill package tetap minim dependency. Ganti
-  dengan `expo-crypto`:
-  ```ts
-  import * as Crypto from "expo-crypto";
-  const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin);
-  ```
-  Terapkan di kedua file sekaligus (hash lama tidak akan cocok lagi — reset PIN karyawan setelah migrasi).
-- **Midtrans Server Key**: jangan pernah taruh di app. Backend siap pakai
-  ada di `backend-midtrans/` (Express + `midtrans-client`):
-  ```bash
-  cd backend-midtrans
-  npm install
-  cp .env.example .env   # isi MIDTRANS_SERVER_KEY, MIDTRANS_CLIENT_KEY, APP_SHARED_KEY
-  npm start               # listen di :3000
-  ```
-  Deploy ke Railway/Render/Fly/Cloud Run, lalu di `src/services/midtransService.ts`
-  ganti `CHARGE_ENDPOINT`/`STATUS_ENDPOINT` ke URL deploy, dan `APP_SHARED_KEY`
-  samakan dengan `.env`. Set Notification URL di Midtrans Dashboard ke
-  `https://<domain-backend>/midtrans/notification` (webhook settlement async).
-- **Apps Script API_KEY**: generate dengan `openssl rand -hex 32`, jangan commit ke git.
+```bash
+npx eas-cli update --branch preview --environment preview --message "Deskripsi perubahan"
+```
 
-## Catatan Presisi Keuangan
+---
 
-Semua nominal uang adalah **integer Rupiah**, tidak pernah `float`. Lihat
-`src/utils/money.ts` — penjumlahan/pengurangan pakai `BigInt` internal,
-persentase (diskon/pajak/komisi) dihitung dalam basis poin (1/10000) lalu
-dibulatkan half-up ke Rupiah terdekat. Jangan pernah menyimpan uang sebagai
-`number` dengan desimal di bagian manapun dari kode ini.
+## Setup Sinkronisasi (Opsional)
+
+### A. Cloud Multi-Device (Supabase)
+
+1. Buat project Supabase dan jalankan isi `supabase/schema.sql` pada **Supabase SQL Editor** (membuat tabel `public.sync_rows`, sequence `sync_seq`, serta RLS policy untuk user `authenticated`).
+2. Buat akun user outlet di **Supabase Authentication > Users** (email & password).
+3. Sesuaikan `CLOUD_URL` dan `CLOUD_ANON_KEY` di `src/constants/cloud.ts` dengan project Supabase Anda.
+4. Masuk melalui **Pengaturan > Cloud (multi-device)** pada perangkat kasir dan owner dengan akun yang sama.
+
+### B. Laporan Google Sheets (Apps Script)
+
+1. Buat Google Sheets baru → **Extensions > Apps Script**.
+2. Salin isi `google-apps-script/Code.gs` ke editor Apps Script.
+3. Simpan `API_KEY` rahasia di **Project Settings > Script Properties** dengan nama key `API_KEY` (atau isi langsung pada variabel `API_KEY` di editor Apps Script).
+4. **Deploy > New deployment > Web app** → *Execute as: Me*, *Who has access: Anyone*.
+5. Salin URL `/exec` dan `API_KEY` ke menu **Pengaturan > Google Sheets (laporan)** di dalam aplikasi.
+
+### C. Backend Midtrans (Opsional)
+
+```bash
+cd backend-midtrans
+npm install
+cp .env.example .env   # Isi MIDTRANS_SERVER_KEY, MIDTRANS_CLIENT_KEY, dan APP_SHARED_KEY
+npm start
+```
+
+Lalu sesuaikan endpoint dan `APP_SHARED_KEY` di `src/services/midtransService.ts`.
+
+---
+
+## Catatan Keamanan & Keuangan
+
+- **Jangan pernah menyimpan secret produksi di Git**: `MIDTRANS_SERVER_KEY`, `API_KEY` Apps Script, file `.env`, dan file keystore (`.jks`/`.keystore`) diabaikan oleh `.gitignore`.
+- **PIN Hashing**: `src/store/authStore.ts` saat ini memakai fungsi hash ringan (`v1:...`). Untuk pengerasan keamanan produksi, disarankan menggantinya dengan hash kriptografis seperti `expo-crypto` (SHA-256).
+- **Presisi Keuangan**: Seluruh perhitungan uang menggunakan **integer Rupiah** (tanpa floating-point) dengan bantuan `BigInt` di `src/utils/money.ts`. Persentase diskon/komisi dihitung dalam *basis poin* ($1/10000$) dan dibulatkan *half-up* ke Rupiah terdekat.
+
+---
+
+## Lisensi
+
+Lihat file [LICENSE](LICENSE).
