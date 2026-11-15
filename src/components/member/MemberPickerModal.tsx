@@ -4,6 +4,7 @@ import { BottomSheet } from "@/components/common/BottomSheet";
 import { Button } from "@/components/common/Button";
 import { Icon } from "@/components/common/Icon";
 import { MemberFormModal } from "@/components/member/MemberFormModal";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, font, radius, spacing } from "@/constants/theme";
 import { useMemberStore } from "@/store/memberStore";
 import { FREE_TREATMENT_POINTS } from "@/utils/membership";
@@ -18,6 +19,7 @@ interface MemberPickerModalProps {
 
 /** Modal pemilih member di keranjang kasir, dilengkapi pencarian dan tombol daftar member baru. */
 export function MemberPickerModal({ visible, selectedMemberId, onClose, onSelect }: MemberPickerModalProps) {
+  const { sheetMaxBodyHeight } = useResponsiveLayout();
   const members = useMemberStore((s) => s.members);
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -40,8 +42,8 @@ export function MemberPickerModal({ visible, selectedMemberId, onClose, onSelect
     <>
       <BottomSheet visible={visible && !createOpen} onClose={onClose}>
         <View>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs }}>
-            <Text style={{ color: color.textPrimary, fontFamily: font.display, fontSize: 22, fontWeight: "600" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.xs, marginBottom: spacing.xs }}>
+            <Text style={{ color: color.textPrimary, fontFamily: font.display, fontSize: 22, fontWeight: "600", flex: 1 }}>
               Pilih Member
             </Text>
             <Button
@@ -59,6 +61,7 @@ export function MemberPickerModal({ visible, selectedMemberId, onClose, onSelect
             style={{
               flexDirection: "row",
               alignItems: "center",
+              minHeight: 44,
               backgroundColor: color.surfaceAlt,
               borderRadius: radius.md,
               borderWidth: 1,
@@ -77,7 +80,11 @@ export function MemberPickerModal({ visible, selectedMemberId, onClose, onSelect
             />
           </View>
 
-          <ScrollView style={{ maxHeight: 340 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={{ maxHeight: Math.max(150, Math.min(340, sheetMaxBodyHeight - 90)) }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             {activeMembers.length === 0 ? (
               <View style={{ alignItems: "center", paddingVertical: spacing.lg }}>
                 <Text style={{ color: color.textMuted, fontSize: 13 }}>

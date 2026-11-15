@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, FlatList } from "react-native";
+import { View, Text, FlatList, Pressable } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCloud } from "@/services/cloudSync";
 import { Card } from "@/components/common/Card";
+import { Icon } from "@/components/common/Icon";
 import { ScreenHeader } from "@/components/common/ScreenHeader";
 import { Button } from "@/components/common/Button";
 import { EmployeeFormModal } from "@/components/employee/EmployeeFormModal";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, radius, spacing } from "@/constants/theme";
 import { formatRupiah } from "@/utils/money";
 import { getDb } from "@/services/database";
@@ -21,6 +23,7 @@ import type { Employee } from "@/types";
  */
 export function EmployeeScreen() {
   const insets = useSafeAreaInsets();
+  const { listColumns, width, pagePadding } = useResponsiveLayout();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
@@ -49,10 +52,30 @@ export function EmployeeScreen() {
     reload();
   }, [reload, syncVersion]);
 
+  const maxCardWidth =
+    listColumns > 1
+      ? Math.floor((width - pagePadding * 2 - spacing.sm * (listColumns - 1)) / listColumns)
+      : undefined;
+
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: color.bg }}>
-      <ScreenHeader title="Karyawan & Komisi" />
-      <View style={{ padding: spacing.md, paddingTop: spacing.xs }}>
+      <ScreenHeader
+        title="Karyawan & Komisi"
+        right={
+          <Pressable
+            onPress={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+            hitSlop={8}
+            accessibilityLabel="Tambah karyawan"
+            style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: color.primary }}
+          >
+            <Icon name="plus" color={color.textOnPrimary} size={20} />
+          </Pressable>
+        }
+      />
+      <View style={{ paddingHorizontal: pagePadding, paddingTop: spacing.xs, paddingBottom: spacing.sm }}>
         <Card>
           <Text style={{ color: color.textMuted, fontSize: 11 }}>Total komisi terutang (30 hari)</Text>
           <Text style={{ color: color.primaryDeep, fontSize: 18, fontWeight: "700" }}>{formatRupiah(totalCommission)}</Text>
@@ -60,20 +83,23 @@ export function EmployeeScreen() {
       </View>
 
       <FlatList
+        key={listColumns}
         data={employees}
         keyExtractor={(e) => e.id}
-        contentContainerStyle={{ padding: spacing.md, paddingTop: 0, paddingBottom: spacing.md + insets.bottom, gap: spacing.sm }}
+        numColumns={listColumns}
+        columnWrapperStyle={listColumns > 1 ? { gap: spacing.sm } : undefined}
+        contentContainerStyle={{ padding: pagePadding, paddingTop: 0, paddingBottom: spacing.md + insets.bottom, gap: spacing.sm }}
         ListEmptyComponent={
           <Text style={{ color: color.textMuted, textAlign: "center", marginTop: spacing.lg }}>Belum ada karyawan.</Text>
         }
         renderItem={({ item: emp }) => (
-          <Card style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Card style={{ flex: 1, maxWidth: maxCardWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <View style={{ flex: 1, marginRight: spacing.sm }}>
-              <Text style={{ color: emp.active ? color.textPrimary : color.textMuted, fontSize: 14, fontWeight: "600" }}>
+              <Text style={{ color: emp.active ? color.textPrimary : color.textMuted, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
                 {emp.name}
                 {emp.active ? "" : "  (nonaktif)"}
               </Text>
-              <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: 4 }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.xs, marginTop: 4 }}>
                 <RoleBadge role={emp.role} />
                 <Text style={{ color: color.textMuted, fontSize: 11 }}>
                   Komisi default:{" "}
@@ -103,7 +129,7 @@ export function EmployeeScreen() {
               setEditing(null);
               setFormOpen(true);
             }}
-            style={{ marginTop: spacing.sm }}
+            style={{ marginTop: spacing.xs }}
           />
         }
       />

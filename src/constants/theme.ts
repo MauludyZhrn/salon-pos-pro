@@ -93,8 +93,13 @@ export const elevation = {
   },
 } as const;
 
-/** Breakpoints used by useResponsiveLayout, in dp of the shortest window edge. */
+/** Breakpoints used by useResponsiveLayout, in dp. */
 export const breakpoint = {
+  smallPhoneMax: 359, // small phone portrait (320–359dp)
   compactPortraitMax: 420, // phone portrait
-  tabletMin: 600, // tablet portrait+
+  tabletMin: 600, // tablet portrait+ (shortest edge >= 600dp)
+  sidePanelMinWidth: 780, // minimum window width for split POS catalog + cart rail
+  sidePanelMinHeight: 500, // minimum window height so split cart summary + list both fit
+  wideTabletMin: 900, // tablet landscape
+  largeTabletMin: 1195, // large tablet landscape
 } as const;

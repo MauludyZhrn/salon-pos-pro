@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, Alert, ScrollView } from "react-nativ
 import { BottomSheet } from "@/components/common/BottomSheet";
 import { Dropdown } from "@/components/common/Dropdown";
 import { Button } from "@/components/common/Button";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, font, radius, spacing } from "@/constants/theme";
 import { getDb } from "@/services/database";
 import { useInventoryStore } from "@/store/inventoryStore";
@@ -31,6 +32,7 @@ const slug = (c: string) => c.trim().toLowerCase().replace(/\s+/g, "-");
 
 /** Add or edit a service: name, category, price, duration, stylist commission and the materials it consumes. */
 export function ServiceFormModal({ visible, service, categories, onClose, onSaved }: ServiceFormModalProps) {
+  const { sheetMaxBodyHeight, isCompactHeight } = useResponsiveLayout();
   const items = useInventoryStore((s) => s.items);
   const loadInventory = useInventoryStore((s) => s.loadInventory);
   const materials = useMemo(() => items.filter((i) => i.category === "bahan_baku"), [items]);
@@ -153,85 +155,99 @@ export function ServiceFormModal({ visible, service, categories, onClose, onSave
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Text style={{ color: color.textPrimary, fontFamily: font.display, fontSize: 22, fontWeight: "600", marginBottom: spacing.md }}>
+      <View>
+        <Text
+          style={{
+            color: color.textPrimary,
+            fontFamily: font.display,
+            fontSize: isCompactHeight ? 20 : 22,
+            fontWeight: "600",
+            marginBottom: spacing.sm,
+          }}
+        >
           {service ? "Edit Layanan" : "Tambah Layanan"}
         </Text>
 
-        <Text style={label}>Nama layanan</Text>
-        <TextInput value={name} onChangeText={setName} placeholder="contoh: Hair Spa Premium" placeholderTextColor={color.textMuted} style={input} />
+        <ScrollView
+          style={{ maxHeight: sheetMaxBodyHeight }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={label}>Nama layanan</Text>
+          <TextInput value={name} onChangeText={setName} placeholder="contoh: Hair Spa Premium" placeholderTextColor={color.textMuted} style={input} />
 
-        <Text style={[label, { marginTop: spacing.sm }]}>Kategori</Text>
-        <Dropdown<string> value={category} onChange={setCategory} options={categoryOptions} />
-        {category === NEW_CATEGORY && (
-          <TextInput
-            value={newCategory}
-            onChangeText={setNewCategory}
-            placeholder="Nama kategori baru"
-            placeholderTextColor={color.textMuted}
-            style={[input, { marginTop: spacing.xs }]}
-          />
-        )}
+          <Text style={[label, { marginTop: spacing.sm }]}>Kategori</Text>
+          <Dropdown<string> value={category} onChange={setCategory} options={categoryOptions} />
+          {category === NEW_CATEGORY && (
+            <TextInput
+              value={newCategory}
+              onChangeText={setNewCategory}
+              placeholder="Nama kategori baru"
+              placeholderTextColor={color.textMuted}
+              style={[input, { marginTop: spacing.xs }]}
+            />
+          )}
 
-        <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm }}>
-          <View style={{ flex: 1.4 }}>
-            <Text style={label}>Harga (Rp)</Text>
-            <TextInput value={price} onChangeText={(v) => setPrice(digits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor={color.textMuted} style={input} />
+          <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm }}>
+            <View style={{ flex: 1.4 }}>
+              <Text style={label}>Harga (Rp)</Text>
+              <TextInput value={price} onChangeText={(v) => setPrice(digits(v))} keyboardType="numeric" placeholder="0" placeholderTextColor={color.textMuted} style={input} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={label}>Durasi (menit)</Text>
+              <TextInput value={duration} onChangeText={(v) => setDuration(digits(v))} keyboardType="numeric" placeholder="30" placeholderTextColor={color.textMuted} style={input} />
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={label}>Durasi (menit)</Text>
-            <TextInput value={duration} onChangeText={(v) => setDuration(digits(v))} keyboardType="numeric" placeholder="30" placeholderTextColor={color.textMuted} style={input} />
+
+          <Text style={[label, { marginTop: spacing.sm }]}>Komisi stylist</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+            <Chip active={basis === "percent"} text="Persen (%)" onPress={() => setBasis("percent")} />
+            <Chip active={basis === "fixed"} text="Nominal (Rp)" onPress={() => setBasis("fixed")} />
+            <Chip active={basis === "none"} text="Tanpa komisi" onPress={() => setBasis("none")} />
           </View>
-        </View>
+          {basis !== "none" && (
+            <TextInput
+              value={commission}
+              onChangeText={(v) => setCommission(basis === "percent" ? decimal(v) : digits(v))}
+              keyboardType="decimal-pad"
+              placeholder={basis === "percent" ? "contoh: 25" : "contoh: 10000"}
+              placeholderTextColor={color.textMuted}
+              style={[input, { marginTop: spacing.xs }]}
+            />
+          )}
 
-        <Text style={[label, { marginTop: spacing.sm }]}>Komisi stylist</Text>
-        <View style={{ flexDirection: "row", gap: spacing.xs }}>
-          <Chip active={basis === "percent"} text="Persen (%)" onPress={() => setBasis("percent")} />
-          <Chip active={basis === "fixed"} text="Nominal (Rp)" onPress={() => setBasis("fixed")} />
-          <Chip active={basis === "none"} text="Tanpa komisi" onPress={() => setBasis("none")} />
-        </View>
-        {basis !== "none" && (
-          <TextInput
-            value={commission}
-            onChangeText={(v) => setCommission(basis === "percent" ? decimal(v) : digits(v))}
-            keyboardType="decimal-pad"
-            placeholder={basis === "percent" ? "contoh: 25" : "contoh: 10000"}
-            placeholderTextColor={color.textMuted}
-            style={[input, { marginTop: spacing.xs }]}
-          />
-        )}
+          {materials.length > 0 && (
+            <>
+              <Text style={[label, { marginTop: spacing.md }]}>Bahan terpakai per layanan (opsional)</Text>
+              <Text style={{ color: color.textMuted, fontSize: 11, marginBottom: spacing.xs }}>
+                Stok bahan berkurang otomatis tiap layanan terjual. Kosongkan kalau tidak dipakai.
+              </Text>
+              {materials.map((m) => (
+                <View key={m.itemId} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xs }}>
+                  <Text style={{ flex: 1, color: color.textPrimary, fontSize: 13 }} numberOfLines={1}>
+                    {m.name}
+                  </Text>
+                  <TextInput
+                    value={usage[m.itemId] ?? ""}
+                    onChangeText={(v) => setUsage((u) => ({ ...u, [m.itemId]: decimal(v) }))}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    placeholderTextColor={color.textMuted}
+                    style={[input, { width: 80, textAlign: "right" }]}
+                  />
+                  <Text style={{ color: color.textMuted, fontSize: 12, width: 28 }}>{m.unit}</Text>
+                </View>
+              ))}
+            </>
+          )}
+        </ScrollView>
 
-        {materials.length > 0 && (
-          <>
-            <Text style={[label, { marginTop: spacing.md }]}>Bahan terpakai per layanan (opsional)</Text>
-            <Text style={{ color: color.textMuted, fontSize: 11, marginBottom: spacing.xs }}>
-              Stok bahan berkurang otomatis tiap layanan terjual. Kosongkan kalau tidak dipakai.
-            </Text>
-            {materials.map((m) => (
-              <View key={m.itemId} style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xs }}>
-                <Text style={{ flex: 1, color: color.textPrimary, fontSize: 13 }} numberOfLines={1}>
-                  {m.name}
-                </Text>
-                <TextInput
-                  value={usage[m.itemId] ?? ""}
-                  onChangeText={(v) => setUsage((u) => ({ ...u, [m.itemId]: decimal(v) }))}
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                  placeholderTextColor={color.textMuted}
-                  style={[input, { width: 80, textAlign: "right" }]}
-                />
-                <Text style={{ color: color.textMuted, fontSize: 12, width: 28 }}>{m.unit}</Text>
-              </View>
-            ))}
-          </>
-        )}
-
-        <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg }}>
+        <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: isCompactHeight ? spacing.sm : spacing.md }}>
           <Button label="Batal" variant="secondary" style={{ flex: 1 }} onPress={onClose} />
           <Button label="Simpan" loading={saving} style={{ flex: 1 }} onPress={handleSave} />
         </View>
-        {service && <Button label="Hapus layanan" variant="danger" fullWidth style={{ marginTop: spacing.sm }} onPress={confirmDelete} />}
-      </ScrollView>
+        {service && <Button label="Hapus layanan" variant="danger" fullWidth style={{ marginTop: spacing.xs }} onPress={confirmDelete} />}
+      </View>
     </BottomSheet>
   );
 }

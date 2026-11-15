@@ -16,7 +16,7 @@ import type { InventoryItem } from "@/types";
 
 export function InventoryScreen() {
   const insets = useSafeAreaInsets();
-  const { posGridColumns } = useResponsiveLayout();
+  const { inventoryColumns, width, pagePadding } = useResponsiveLayout();
   const items = useInventoryStore((s) => s.items);
   const lowStockItems = useInventoryStore((s) => s.lowStockItems);
   const loadInventory = useInventoryStore((s) => s.loadInventory);
@@ -33,7 +33,9 @@ export function InventoryScreen() {
   }, [loadInventory, syncVersion]);
 
   const filtered = items.filter((i) => i.name.toLowerCase().includes(query.toLowerCase()));
-  const columns = Math.max(1, posGridColumns - 1);
+  const columns = inventoryColumns;
+  const maxCardWidth =
+    columns > 1 ? Math.floor((width - pagePadding * 2 - spacing.sm * (columns - 1)) / columns) : undefined;
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: color.bg }}>
@@ -42,17 +44,17 @@ export function InventoryScreen() {
         right={
           <Pressable
             onPress={() => setAddOpen(true)}
+            hitSlop={8}
             accessibilityLabel="Tambah produk"
-            style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: color.primary }}
+            style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: color.primary }}
           >
             <Icon name="plus" color={color.textOnPrimary} size={20} />
           </Pressable>
         }
       />
-      <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xs }}>
-
+      <View style={{ paddingHorizontal: pagePadding, paddingBottom: spacing.xs }}>
         {lowStockItems.length > 0 && (
-          <Card style={{ marginTop: spacing.sm, borderColor: color.danger }}>
+          <Card style={{ marginTop: spacing.xs, borderColor: color.danger }}>
             <Text style={{ color: color.danger, fontSize: 13, fontWeight: "700" }}>
               ⚠ {lowStockItems.length} item stok menipis
             </Text>
@@ -68,6 +70,7 @@ export function InventoryScreen() {
           placeholder="Cari item..."
           placeholderTextColor={color.textMuted}
           style={{
+            minHeight: 46,
             backgroundColor: color.surfaceAlt,
             borderRadius: radius.md,
             borderWidth: 1,
@@ -85,7 +88,8 @@ export function InventoryScreen() {
         data={filtered}
         keyExtractor={(i) => i.itemId}
         numColumns={columns}
-        contentContainerStyle={{ padding: spacing.md, paddingTop: 0, paddingBottom: spacing.md + insets.bottom, gap: spacing.sm }}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: pagePadding, paddingTop: 0, paddingBottom: spacing.md + insets.bottom, gap: spacing.sm }}
         columnWrapperStyle={columns > 1 ? { gap: spacing.sm } : undefined}
         ListEmptyComponent={
           <Text style={{ color: color.textMuted, textAlign: "center", marginTop: spacing.lg }}>
@@ -95,8 +99,8 @@ export function InventoryScreen() {
         renderItem={({ item }) => {
           const low = item.stockQty <= item.lowStockThreshold;
           return (
-            <Card style={{ flex: 1 / columns, borderColor: low ? color.danger : color.border }}>
-              <Text style={{ color: color.textPrimary, fontSize: 13, fontWeight: "600" }} numberOfLines={1}>
+            <Card style={{ flex: 1, maxWidth: maxCardWidth, borderColor: low ? color.danger : color.border }}>
+              <Text style={{ color: color.textPrimary, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
                 {item.name}
               </Text>
               <Text style={{ color: color.textMuted, fontSize: 11, marginTop: 2, textTransform: "capitalize" }}>
@@ -106,9 +110,9 @@ export function InventoryScreen() {
                 {item.stockQty} {item.unit}
               </Text>
               {item.sellPrice != null && (
-                <Text style={{ color: color.primaryDeep, fontSize: 12, marginTop: 2 }}>{formatRupiah(item.sellPrice)}</Text>
+                <Text style={{ color: color.primaryDeep, fontSize: 13, fontWeight: "600", marginTop: 2 }}>{formatRupiah(item.sellPrice)}</Text>
               )}
-              <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: spacing.sm }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm }}>
                 <Button
                   label="Sesuaikan stok"
                   size="sm"

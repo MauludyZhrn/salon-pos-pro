@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { View, Text, TextInput, Pressable, Alert, ScrollView } from "react-native";
-import { color, radius, spacing } from "@/constants/theme";
+import { color, font, radius, spacing } from "@/constants/theme";
 import { Button } from "@/components/common/Button";
 import { BottomSheet } from "@/components/common/BottomSheet";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getDb } from "@/services/database";
 import { enqueueSync } from "@/services/syncQueue";
 import { useAuthStore } from "@/store/authStore";
@@ -28,6 +29,7 @@ async function hashPin(pin: string): Promise<string> {
 
 /** Create/edit employee: name, role (RBAC), PIN, default commission basis/value. */
 export function EmployeeFormModal({ visible, employee, onClose, onSaved }: EmployeeFormModalProps) {
+  const { sheetMaxBodyHeight, isCompactHeight } = useResponsiveLayout();
   const currentEmployee = useAuthStore((s) => s.currentEmployee);
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("stylist");
@@ -178,27 +180,42 @@ export function EmployeeFormModal({ visible, employee, onClose, onSaved }: Emplo
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <View>
-          <Text style={{ color: color.textPrimary, fontSize: 18, fontWeight: "700", marginBottom: spacing.md }}>
-            {employee ? "Edit Karyawan" : "Tambah Karyawan"}
-          </Text>
+      <View>
+        <Text
+          style={{
+            color: color.textPrimary,
+            fontFamily: font.display,
+            fontSize: isCompactHeight ? 20 : 22,
+            fontWeight: "600",
+            marginBottom: spacing.sm,
+          }}
+        >
+          {employee ? "Edit Karyawan" : "Tambah Karyawan"}
+        </Text>
 
+        <ScrollView
+          style={{ maxHeight: sheetMaxBodyHeight }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <TextInput value={name} onChangeText={setName} placeholder="Nama" placeholderTextColor={color.textMuted} style={inputStyle} />
 
           <Text style={{ color: color.textSecondary, fontSize: 13, marginTop: spacing.sm, marginBottom: spacing.xxs }}>Role</Text>
-          <View style={{ flexDirection: "row", gap: spacing.xs }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
             {ROLES.map((r) => (
               <Pressable
                 key={r}
                 onPress={() => setRole(r)}
                 style={{
+                  minHeight: 38,
                   paddingHorizontal: spacing.sm,
                   paddingVertical: spacing.xs,
                   borderRadius: radius.pill,
                   backgroundColor: role === r ? color.primary : color.surfaceAlt,
                   borderWidth: 1,
                   borderColor: role === r ? color.primary : color.border,
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 <Text style={{ color: role === r ? color.textOnPrimary : color.textSecondary, fontSize: 12, fontWeight: "600", textTransform: "capitalize" }}>
@@ -224,16 +241,19 @@ export function EmployeeFormModal({ visible, employee, onClose, onSaved }: Emplo
           <Text style={{ color: color.textSecondary, fontSize: 13, marginTop: spacing.sm, marginBottom: spacing.xxs }}>
             Komisi default
           </Text>
-          <View style={{ flexDirection: "row", gap: spacing.xs, marginBottom: spacing.xs }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.xs }}>
             <Pressable
               onPress={() => setBasis("percent")}
               style={{
+                minHeight: 38,
                 paddingHorizontal: spacing.sm,
                 paddingVertical: spacing.xs,
                 borderRadius: radius.pill,
                 backgroundColor: basis === "percent" ? color.primary : color.surfaceAlt,
                 borderWidth: 1,
                 borderColor: basis === "percent" ? color.primary : color.border,
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
               <Text style={{ color: basis === "percent" ? color.textOnPrimary : color.textSecondary, fontSize: 12, fontWeight: "600" }}>
@@ -243,12 +263,15 @@ export function EmployeeFormModal({ visible, employee, onClose, onSaved }: Emplo
             <Pressable
               onPress={() => setBasis("fixed")}
               style={{
+                minHeight: 38,
                 paddingHorizontal: spacing.sm,
                 paddingVertical: spacing.xs,
                 borderRadius: radius.pill,
                 backgroundColor: basis === "fixed" ? color.primary : color.surfaceAlt,
                 borderWidth: 1,
                 borderColor: basis === "fixed" ? color.primary : color.border,
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
               <Text style={{ color: basis === "fixed" ? color.textOnPrimary : color.textSecondary, fontSize: 12, fontWeight: "600" }}>
@@ -279,16 +302,16 @@ export function EmployeeFormModal({ visible, employee, onClose, onSaved }: Emplo
               Nonaktif: tidak bisa login dan tidak muncul di pilihan stylist. Tekan Simpan untuk menerapkan.
             </Text>
           )}
+        </ScrollView>
 
-          <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg }}>
-            <Button label="Batal" variant="secondary" style={{ flex: 1 }} onPress={onClose} />
-            <Button label="Simpan" loading={saving} style={{ flex: 1 }} onPress={handleSave} />
-          </View>
-          {employee && (
-            <Button label="Hapus karyawan" variant="danger" fullWidth style={{ marginTop: spacing.sm }} onPress={handleDelete} />
-          )}
+        <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: isCompactHeight ? spacing.sm : spacing.md }}>
+          <Button label="Batal" variant="secondary" style={{ flex: 1 }} onPress={onClose} />
+          <Button label="Simpan" loading={saving} style={{ flex: 1 }} onPress={handleSave} />
         </View>
-      </ScrollView>
+        {employee && (
+          <Button label="Hapus karyawan" variant="danger" fullWidth style={{ marginTop: spacing.xs }} onPress={handleDelete} />
+        )}
+      </View>
     </BottomSheet>
   );
 }

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { View, Text, Pressable, Alert, useWindowDimensions } from "react-native";
+import { View, Text, Pressable, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CalendarView } from "@/components/booking/CalendarView";
 import { BookingFormModal } from "@/components/booking/BookingFormModal";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useCloud } from "@/services/cloudSync";
 import { Button } from "@/components/common/Button";
-import { color, elevation, spacing } from "@/constants/theme";
+import { color, elevation, radius, spacing } from "@/constants/theme";
 import { useBookingStore } from "@/store/bookingStore";
 import { useCatalog } from "@/hooks/useCatalog";
 import { useStylists } from "@/hooks/useStylists";
@@ -23,7 +24,7 @@ const NEXT_STATUS: Partial<Record<BookingStatus, BookingStatus>> = {
 
 export function BookingScreen() {
   const [date, setDate] = useState(new Date());
-  const { width } = useWindowDimensions();
+  const { useWideCalendar, isCompactHeight, pagePadding } = useResponsiveLayout();
   const stylists = useStylists();
   const bookings = useBookingStore((s) => s.bookings);
   const loadRange = useBookingStore((s) => s.loadRange);
@@ -50,40 +51,51 @@ export function BookingScreen() {
       <ScreenHeader title="Booking" showBack={false} />
       <View
         style={{
-          flexDirection: width < 600 ? "column" : "row",
-          alignItems: width < 600 ? "flex-start" : "center",
+          flexDirection: useWideCalendar ? "row" : "column",
+          alignItems: useWideCalendar ? "center" : "stretch",
           justifyContent: "space-between",
-          gap: spacing.sm,
-          padding: spacing.md,
+          gap: spacing.xs,
+          paddingHorizontal: pagePadding,
+          paddingVertical: isCompactHeight ? spacing.xs : spacing.sm,
         }}
       >
-        <Text style={{ color: color.textPrimary, fontSize: 16, fontWeight: "600", flexShrink: 1 }}>
+        <Text style={{ color: color.textPrimary, fontSize: 15, fontWeight: "600", flexShrink: 1 }} numberOfLines={1}>
           Booking · {date.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
         </Text>
-        <View style={{ flexDirection: "row", gap: spacing.xs }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
           <Button
             size="sm"
             variant="secondary"
             label="‹"
+            style={{ minWidth: 44, minHeight: 44, paddingHorizontal: 0 }}
+            accessibilityLabel="Hari sebelumnya"
             onPress={() => setDate((d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1))}
           />
-          <Button size="sm" variant="secondary" label="Hari ini" onPress={() => setDate(new Date())} />
+          <Button
+            size="sm"
+            variant="secondary"
+            label="Hari ini"
+            style={{ minHeight: 44 }}
+            onPress={() => setDate(new Date())}
+          />
           <Button
             size="sm"
             variant="secondary"
             label="›"
+            style={{ minWidth: 44, minHeight: 44, paddingHorizontal: 0 }}
+            accessibilityLabel="Hari berikutnya"
             onPress={() => setDate((d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1))}
           />
         </View>
       </View>
 
       {stylists.length === 0 && (
-        <Text style={{ color: color.textMuted, fontSize: 13, paddingHorizontal: spacing.md }}>
+        <Text style={{ color: color.textMuted, fontSize: 13, paddingHorizontal: pagePadding, marginBottom: spacing.xs }}>
           Belum ada stylist aktif. Tambahkan di Profil › Karyawan & Komisi.
         </Text>
       )}
 
-      <View style={{ flex: 1, paddingHorizontal: spacing.md }}>
+      <View style={{ flex: 1, paddingHorizontal: pagePadding }}>
         <CalendarView
           date={date}
           bookings={bookings}
@@ -96,21 +108,35 @@ export function BookingScreen() {
       {selected && (
         <View
           style={{
-            margin: spacing.md,
+            marginHorizontal: pagePadding,
+            marginBottom: spacing.sm,
+            marginTop: spacing.xs,
             padding: spacing.md,
-            backgroundColor: color.surfaceAlt,
-            borderRadius: 16,
+            backgroundColor: color.surface,
+            borderRadius: radius.xl,
             borderWidth: 1,
-            borderColor: color.border,
+            borderColor: color.borderStrong,
+            ...elevation.card,
           }}
         >
-          <Text style={{ color: color.textPrimary, fontWeight: "700" }}>{selected.customerName}</Text>
-          <Text style={{ color: color.textSecondary, fontSize: 12, marginTop: 2 }}>Status: {STATUS_LABEL[selected.status]}</Text>
-          <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: spacing.sm }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.xs }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: color.textPrimary, fontSize: 15, fontWeight: "700" }} numberOfLines={1}>
+                {selected.customerName}
+              </Text>
+              <Text style={{ color: color.textSecondary, fontSize: 12, marginTop: 2 }}>
+                Status: {STATUS_LABEL[selected.status]} ·{" "}
+                {new Date(selected.startAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+              </Text>
+            </View>
+            <Button size="sm" variant="ghost" label="Tutup" onPress={() => setSelected(null)} />
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm }}>
             {NEXT_STATUS[selected.status] && (
               <Button
                 size="sm"
                 label={`Tandai ${STATUS_LABEL[NEXT_STATUS[selected.status]!].toLowerCase()}`}
+                style={{ flexGrow: 1 }}
                 onPress={() => {
                   updateStatus(selected.id, NEXT_STATUS[selected.status]!);
                   setSelected(null);
@@ -126,12 +152,11 @@ export function BookingScreen() {
                 setSelected(null);
               }}
             />
-            <Button size="sm" variant="ghost" label="Tutup" onPress={() => setSelected(null)} />
           </View>
         </View>
       )}
 
-      {(
+      {!selected && (
         <Pressable
           onPress={() => {
             if (stylists.length === 0) {
@@ -141,18 +166,18 @@ export function BookingScreen() {
             setFormSlot({ stylistId: stylists[0].id, hour: Math.min(19, Math.max(9, new Date().getHours() + 1)) });
           }}
           accessibilityLabel="Booking baru"
-          style={{
+          style={({ pressed }) => ({
             position: "absolute",
-            right: spacing.md,
+            right: pagePadding,
             bottom: spacing.md,
             width: 56,
             height: 56,
             borderRadius: 28,
-            backgroundColor: color.primary,
+            backgroundColor: pressed ? "#DB6C93" : color.primary,
             alignItems: "center",
             justifyContent: "center",
             ...elevation.modal,
-          }}
+          })}
         >
           <Icon name="plus" color={color.textOnPrimary} size={26} />
         </Pressable>

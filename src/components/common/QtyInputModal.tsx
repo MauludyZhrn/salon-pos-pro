@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable } from "react-native";
 import { BottomSheet } from "@/components/common/BottomSheet";
 import { Button } from "@/components/common/Button";
 import { Icon } from "@/components/common/Icon";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, font, radius, spacing } from "@/constants/theme";
 
 interface QtyInputModalProps {
@@ -23,6 +24,7 @@ const digits = (v: string) => v.replace(/\D/g, "");
 
 /** Ketik jumlah langsung (atau pakai tombol - / +). Dipakai di keranjang dan di grid produk. */
 export function QtyInputModal({ visible, title, subtitle, initial, confirmLabel = "Simpan", min = 1, max = 999, onClose, onConfirm }: QtyInputModalProps) {
+  const { isCompactHeight } = useResponsiveLayout();
   const [text, setText] = useState(String(initial));
 
   useEffect(() => {
@@ -40,12 +42,20 @@ export function QtyInputModal({ visible, title, subtitle, initial, confirmLabel 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <View>
-        <Text style={{ color: color.textPrimary, fontFamily: font.display, fontSize: 20, fontWeight: "600" }} numberOfLines={2}>
+        <Text style={{ color: color.textPrimary, fontFamily: font.display, fontSize: isCompactHeight ? 18 : 20, fontWeight: "600" }} numberOfLines={2}>
           {title}
         </Text>
         {subtitle ? <Text style={{ color: color.textMuted, fontSize: 12, marginTop: 2 }}>{subtitle}</Text> : null}
 
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.md, marginVertical: spacing.lg }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: spacing.md,
+            marginVertical: isCompactHeight ? spacing.sm : spacing.lg,
+          }}
+        >
           <Pressable
             onPress={() => step(-1)}
             hitSlop={8}
@@ -63,7 +73,7 @@ export function QtyInputModal({ visible, title, subtitle, initial, confirmLabel 
             style={{
               minWidth: 110,
               textAlign: "center",
-              fontSize: 34,
+              fontSize: isCompactHeight ? 28 : 34,
               fontWeight: "700",
               color: color.textPrimary,
               backgroundColor: color.surfaceAlt,

@@ -3,6 +3,7 @@ import { View, Text, TextInput, Alert, ScrollView, Switch } from "react-native";
 import { BottomSheet } from "@/components/common/BottomSheet";
 import { Button } from "@/components/common/Button";
 import { Chip } from "@/components/common/Chip";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, font, radius, spacing } from "@/constants/theme";
 import { useMemberStore } from "@/store/memberStore";
 import { POINTS_PER_TREATMENT } from "@/utils/membership";
@@ -28,6 +29,7 @@ const QUICK_POINTS = [
 
 /** Form tambah / ubah / hapus member beserta poinnya. */
 export function MemberFormModal({ visible, member, onClose, onSaved }: MemberFormModalProps) {
+  const { sheetMaxBodyHeight } = useResponsiveLayout();
   const save = useMemberStore((s) => s.save);
   const remove = useMemberStore((s) => s.remove);
 
@@ -112,7 +114,7 @@ export function MemberFormModal({ visible, member, onClose, onSaved }: MemberFor
           </Text>
         )}
 
-        <ScrollView style={{ maxHeight: 460 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ maxHeight: sheetMaxBodyHeight }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Label>Nama Pelanggan</Label>
           <TextInput
             value={name}

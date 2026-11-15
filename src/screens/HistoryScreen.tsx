@@ -7,6 +7,7 @@ import { Chip } from "@/components/common/Chip";
 import { Icon } from "@/components/common/Icon";
 import { EditTransactionModal } from "@/components/history/EditTransactionModal";
 import { TransactionDetailSheet } from "@/components/history/TransactionDetailSheet";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, radius, spacing } from "@/constants/theme";
 import { useCloud } from "@/services/cloudSync";
 import { listTransactions, loadTransaction, type HistoryPeriod, type TxSummary } from "@/services/transactionRepo";
@@ -27,6 +28,7 @@ type Sheet = "detail" | "edit" | null;
 /** Riwayat transaksi: cari, lihat, cetak ulang struk, dan (admin) koreksi input yang salah. */
 export function HistoryScreen() {
   const insets = useSafeAreaInsets();
+  const { listColumns, width, pagePadding } = useResponsiveLayout();
   const role = useAuthStore((s) => s.currentEmployee?.role);
   const canEdit = !!role && PERMISSIONS.transactionEdit.includes(role);
   const syncVersion = useCloud((c) => c.version);
@@ -72,15 +74,20 @@ export function HistoryScreen() {
     Alert.alert("Transaksi diperbarui", "Tekan Cetak ulang struk untuk mencetak versi yang benar.");
   }
 
+  const columns = listColumns >= 2 ? 2 : 1;
+  const maxCardWidth =
+    columns > 1 ? Math.floor((width - pagePadding * 2 - spacing.xs * (columns - 1)) / columns) : undefined;
+
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: color.bg }}>
       <ScreenHeader title="Riwayat Transaksi" />
 
-      <View style={{ paddingHorizontal: spacing.md, gap: spacing.sm }}>
+      <View style={{ paddingHorizontal: pagePadding, gap: spacing.sm }}>
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
+            minHeight: 46,
             gap: spacing.xs,
             backgroundColor: color.surface,
             borderRadius: radius.lg,
@@ -96,7 +103,7 @@ export function HistoryScreen() {
             placeholder="Cari nomor struk atau nama pelanggan"
             placeholderTextColor={color.textMuted}
             autoCapitalize="none"
-            style={{ flex: 1, color: color.textPrimary, paddingVertical: spacing.sm, fontSize: 15 }}
+            style={{ flex: 1, color: color.textPrimary, paddingVertical: 10, fontSize: 15 }}
           />
         </View>
 
@@ -115,14 +122,17 @@ export function HistoryScreen() {
         <ActivityIndicator color={color.primary} style={{ marginTop: spacing.xl }} />
       ) : (
         <FlatList
+          key={columns}
           data={rows}
           keyExtractor={(r) => r.localId}
-          contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.md + insets.bottom, gap: spacing.xs }}
+          numColumns={columns}
+          columnWrapperStyle={columns > 1 ? { gap: spacing.xs } : undefined}
+          contentContainerStyle={{ padding: pagePadding, paddingBottom: spacing.md + insets.bottom, gap: spacing.xs }}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <Text style={{ color: color.textMuted, textAlign: "center", marginTop: spacing.xl }}>Belum ada transaksi pada periode ini.</Text>
           }
-          renderItem={({ item: r }) => <Row row={r} onPress={() => open(r)} />}
+          renderItem={({ item: r }) => <Row row={r} maxWidth={maxCardWidth} onPress={() => open(r)} />}
         />
       )}
 
@@ -132,13 +142,15 @@ export function HistoryScreen() {
   );
 }
 
-function Row({ row, onPress }: { row: TxSummary; onPress: () => void }) {
+function Row({ row, maxWidth, onPress }: { row: TxSummary; maxWidth?: number; onPress: () => void }) {
   const isVoid = row.status === "void";
   const when = new Date(row.createdAt);
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => ({
+        flex: 1,
+        maxWidth,
         flexDirection: "row",
         alignItems: "center",
         gap: spacing.sm,

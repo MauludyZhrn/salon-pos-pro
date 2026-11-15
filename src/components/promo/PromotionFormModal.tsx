@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, Alert, ScrollView, Switch } from "rea
 import { BottomSheet } from "@/components/common/BottomSheet";
 import { Button } from "@/components/common/Button";
 import { Chip } from "@/components/common/Chip";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, font, radius, spacing } from "@/constants/theme";
 import { useCatalog } from "@/hooks/useCatalog";
 import { usePromoStore } from "@/store/promoStore";
@@ -35,6 +36,7 @@ const decimal = (v: string) => v.replace(",", ".").replace(/[^0-9.]/g, "");
 
 /** Tambah / ubah / hapus satu diskon, promo, atau biaya tambahan. */
 export function PromotionFormModal({ visible, promo, onClose }: PromotionFormModalProps) {
+  const { sheetMaxBodyHeight } = useResponsiveLayout();
   const save = usePromoStore((s) => s.save);
   const remove = usePromoStore((s) => s.remove);
   const { items } = useCatalog();
@@ -152,7 +154,7 @@ export function PromotionFormModal({ visible, promo, onClose }: PromotionFormMod
           {promo ? "Ubah" : "Tambah"} promo
         </Text>
 
-        <ScrollView style={{ maxHeight: 480 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ maxHeight: sheetMaxBodyHeight }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Label>Nama</Label>
           <TextInput value={name} onChangeText={setName} placeholder="mis. Promo Gajian" placeholderTextColor={color.textMuted} maxLength={40} style={inputStyle} />
 

@@ -35,7 +35,7 @@ function tintFor(category: string) {
  * count on the same frame as the dimension change.
  */
 export function ProductGrid({ items, onSelect, header, bottomInset = 0 }: ProductGridProps) {
-  const { posGridColumns } = useResponsiveLayout();
+  const { posGridColumns, catalogWidth, isCompactHeight, isSmallPhone, pagePadding } = useResponsiveLayout();
   const [activeCategory, setActiveCategory] = useState<string | "all">("all");
   const [query, setQuery] = useState("");
   const lines = usePosStore((s) => s.lines);
@@ -67,6 +67,12 @@ export function ProductGrid({ items, onSelect, header, bottomInset = 0 }: Produc
     });
   }, [items, activeCategory, query]);
 
+  const gap = isSmallPhone ? spacing.xs : spacing.sm;
+  const maxCardWidth =
+    posGridColumns > 1
+      ? Math.floor((catalogWidth - pagePadding * 2 - gap * (posGridColumns - 1)) / posGridColumns)
+      : undefined;
+
   const listHeader = (
     <View>
       {header}
@@ -80,7 +86,8 @@ export function ProductGrid({ items, onSelect, header, bottomInset = 0 }: Produc
           borderWidth: 1,
           borderColor: color.border,
           paddingHorizontal: spacing.sm,
-          marginBottom: spacing.sm,
+          minHeight: 46,
+          marginBottom: spacing.xs,
         }}
       >
         <Icon name="search" color={color.textMuted} size={18} />
@@ -89,34 +96,57 @@ export function ProductGrid({ items, onSelect, header, bottomInset = 0 }: Produc
           onChangeText={setQuery}
           placeholder="Cari layanan atau produk"
           placeholderTextColor={color.textMuted}
-          style={{ flex: 1, color: color.textPrimary, paddingVertical: spacing.sm, fontSize: 15 }}
+          style={{ flex: 1, color: color.textPrimary, paddingVertical: 10, fontSize: 15 }}
         />
+        {query.length > 0 && (
+          <Pressable
+            onPress={() => setQuery("")}
+            hitSlop={10}
+            accessibilityLabel="Bersihkan pencarian"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              backgroundColor: color.surfaceAlt,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text style={{ color: color.textSecondary, fontSize: 13, fontWeight: "700" }}>✕</Text>
+          </Pressable>
+        )}
       </View>
 
-      <Text style={{ color: color.textMuted, fontSize: 11, marginBottom: spacing.xs }}>
-        Ketuk untuk menambah 1. Tahan produk untuk mengisi jumlah.
-      </Text>
+      {!isCompactHeight && (
+        <Text style={{ color: color.textMuted, fontSize: 11, marginBottom: spacing.xs }}>
+          Ketuk untuk menambah 1. Tahan produk untuk mengisi jumlah.
+        </Text>
+      )}
 
       <FlatList
         horizontal
         showsHorizontalScrollIndicator={false}
         data={["all", ...categories]}
         keyExtractor={(c) => c}
-        style={{ flexGrow: 0, marginBottom: spacing.sm }}
-        contentContainerStyle={{ gap: spacing.xs }}
+        style={{ flexGrow: 0, marginBottom: spacing.xs }}
+        contentContainerStyle={{ gap: spacing.xs, paddingVertical: 2 }}
         renderItem={({ item: cat }) => {
           const active = activeCategory === cat;
           return (
             <Pressable
               onPress={() => setActiveCategory(cat)}
-              style={{
-                paddingHorizontal: spacing.sm,
-                paddingVertical: 7,
+              hitSlop={6}
+              style={({ pressed }) => ({
+                minHeight: 38,
+                paddingHorizontal: spacing.sm + 2,
+                paddingVertical: 8,
                 borderRadius: radius.pill,
-                backgroundColor: active ? color.primary : color.surface,
+                backgroundColor: active ? color.primary : pressed ? color.surfaceAlt : color.surface,
                 borderWidth: 1,
                 borderColor: active ? color.primary : color.borderStrong,
-              }}
+                alignItems: "center",
+                justifyContent: "center",
+              })}
             >
               <Text
                 style={{
@@ -137,57 +167,68 @@ export function ProductGrid({ items, onSelect, header, bottomInset = 0 }: Produc
 
   return (
     <>
-    <FlatList
-      key={posGridColumns} // force re-layout when column count changes across rotation
-      data={filtered}
-      keyExtractor={(i) => i.id}
-      numColumns={posGridColumns}
-      keyboardShouldPersistTaps="handled"
-      ListHeaderComponent={listHeader}
-      ListEmptyComponent={
-        <Text style={{ color: color.textMuted, textAlign: "center", marginTop: spacing.lg }}>
-          Belum ada layanan atau produk yang cocok.
-        </Text>
-      }
-      columnWrapperStyle={posGridColumns > 1 ? { gap: spacing.sm } : undefined}
-      contentContainerStyle={{ gap: spacing.sm, padding: spacing.md, paddingBottom: spacing.xl + bottomInset }}
-      renderItem={({ item }) => (
-        <ProductCard
-          item={item}
-          columns={posGridColumns}
-          qty={qtyById.get(item.id) ?? 0}
-          rules={rulesForItem(item, promos)}
-          onAdd={() => onSelect(item)}
-          onLongPress={() => setQtyItem(item)}
-        />
-      )}
-    />
-    <QtyInputModal
-      visible={qtyItem !== null}
-      title={qtyItem?.name ?? ""}
-      subtitle="Berapa yang ditambahkan ke keranjang?"
-      initial={1}
-      confirmLabel="Tambah"
-      onClose={() => setQtyItem(null)}
-      onConfirm={(qty) => {
-        if (qtyItem) addItem(qtyItem, null, qty);
-        setQtyItem(null);
-      }}
-    />
+      <FlatList
+        key={posGridColumns} // force re-layout when column count changes across rotation
+        data={filtered}
+        keyExtractor={(i) => i.id}
+        numColumns={posGridColumns}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={
+          <Text style={{ color: color.textMuted, textAlign: "center", marginTop: spacing.lg }}>
+            Belum ada layanan atau produk yang cocok.
+          </Text>
+        }
+        columnWrapperStyle={posGridColumns > 1 ? { gap } : undefined}
+        contentContainerStyle={{
+          gap,
+          paddingHorizontal: pagePadding,
+          paddingTop: spacing.sm,
+          paddingBottom: spacing.xl + bottomInset,
+        }}
+        renderItem={({ item }) => (
+          <ProductCard
+            item={item}
+            maxWidth={maxCardWidth}
+            compactHeight={isCompactHeight}
+            smallPhone={isSmallPhone}
+            qty={qtyById.get(item.id) ?? 0}
+            rules={rulesForItem(item, promos)}
+            onAdd={() => onSelect(item)}
+            onLongPress={() => setQtyItem(item)}
+          />
+        )}
+      />
+      <QtyInputModal
+        visible={qtyItem !== null}
+        title={qtyItem?.name ?? ""}
+        subtitle="Berapa yang ditambahkan ke keranjang?"
+        initial={1}
+        confirmLabel="Tambah"
+        onClose={() => setQtyItem(null)}
+        onConfirm={(qty) => {
+          if (qtyItem) addItem(qtyItem, null, qty);
+          setQtyItem(null);
+        }}
+      />
     </>
   );
 }
 
 function ProductCard({
   item,
-  columns,
+  maxWidth,
+  compactHeight,
+  smallPhone,
   qty,
   rules,
   onAdd,
   onLongPress,
 }: {
   item: CatalogItem;
-  columns: number;
+  maxWidth?: number;
+  compactHeight: boolean;
+  smallPhone: boolean;
   qty: number;
   rules: AdjustmentRule[];
   onAdd: () => void;
@@ -196,28 +237,41 @@ function ProductCard({
   const unit = evaluateRules(item.price, 1, rules);
   const netPrice = item.price - unit.discount;
   const badge = badgeFor(rules, item.price);
+  const bannerHeight = compactHeight ? 68 : smallPhone ? 80 : 92;
+
   return (
     <Pressable
       onPress={onAdd}
       onLongPress={onLongPress}
       delayLongPress={350}
       style={({ pressed }) => ({
-        flex: 1 / columns,
+        flex: 1,
+        maxWidth,
         backgroundColor: color.surface,
         borderRadius: radius.xl,
         borderWidth: 1,
-        borderColor: color.border,
+        borderColor: qty > 0 ? color.primary : color.border,
         overflow: "hidden",
         opacity: pressed ? 0.85 : 1,
         ...elevation.card,
       })}
     >
-      <View style={{ height: 92, backgroundColor: tintFor(item.category), alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontFamily: font.display, fontSize: 38, color: color.primaryDeep, opacity: 0.5 }}>
+      <View style={{ height: bannerHeight, backgroundColor: tintFor(item.category), alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontFamily: font.display, fontSize: compactHeight ? 30 : 38, color: color.primaryDeep, opacity: 0.5 }}>
           {item.name.trim().charAt(0).toUpperCase()}
         </Text>
         {item.type === "retail" && (
-          <View style={{ position: "absolute", top: 8, left: 8, backgroundColor: color.surface, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
+          <View
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              backgroundColor: color.surface,
+              borderRadius: radius.pill,
+              paddingHorizontal: 8,
+              paddingVertical: 2,
+            }}
+          >
             <Text style={{ fontSize: 10, fontWeight: "700", color: color.textSecondary }}>Retail</Text>
           </View>
         )}
@@ -225,9 +279,9 @@ function ProductCard({
           <View
             style={{
               position: "absolute",
-              bottom: 8,
+              bottom: 6,
               left: 8,
-              maxWidth: "90%",
+              maxWidth: "88%",
               backgroundColor: badge.tone === "discount" ? "#2F9E63" : "#D9953E",
               borderRadius: radius.pill,
               paddingHorizontal: 8,
@@ -240,27 +294,53 @@ function ProductCard({
           </View>
         )}
         {qty > 0 && (
-          <View style={{ position: "absolute", top: 8, right: 8, minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: color.primary, alignItems: "center", justifyContent: "center" }}>
+          <View
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              minWidth: 24,
+              height: 24,
+              borderRadius: 12,
+              paddingHorizontal: 6,
+              backgroundColor: color.primary,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
             <Text style={{ fontSize: 12, fontWeight: "700", color: color.textOnPrimary }}>{qty}</Text>
           </View>
         )}
       </View>
 
-      <View style={{ padding: spacing.sm }}>
-        <Text numberOfLines={2} style={{ color: color.textPrimary, fontSize: 14, fontWeight: "600", minHeight: 36 }}>
+      <View style={{ padding: smallPhone ? spacing.xs + 2 : spacing.sm }}>
+        <Text
+          numberOfLines={2}
+          style={{
+            color: color.textPrimary,
+            fontSize: smallPhone ? 13 : 14,
+            fontWeight: "600",
+            minHeight: compactHeight ? 34 : 36,
+          }}
+        >
           {item.name}
         </Text>
-        <Text style={{ color: color.textMuted, fontSize: 11, marginTop: 2, minHeight: 14 }}>
-          {item.durationMinutes ? `${item.durationMinutes} menit` : ""}
+        <Text style={{ color: color.textMuted, fontSize: 11, marginTop: 2, minHeight: 14 }} numberOfLines={1}>
+          {item.durationMinutes ? `${item.durationMinutes} menit` : item.type === "retail" ? "Produk retail" : ""}
         </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.xs }}>
-          <View style={{ flexShrink: 1 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.xs, gap: 6 }}>
+          <View style={{ flex: 1 }}>
             {unit.discount > 0 && (
               <Text style={{ color: color.textMuted, fontSize: 11, textDecorationLine: "line-through" }} numberOfLines={1}>
                 {formatRupiah(item.price)}
               </Text>
             )}
-            <Text style={{ color: color.primaryDeep, fontSize: 15, fontWeight: "700" }} numberOfLines={1}>
+            <Text
+              style={{ color: color.primaryDeep, fontSize: smallPhone ? 14 : 15, fontWeight: "700" }}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+            >
               {formatRupiah(netPrice)}
             </Text>
             {unit.extra > 0 && (
@@ -269,7 +349,16 @@ function ProductCard({
               </Text>
             )}
           </View>
-          <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: color.primarySoft, alignItems: "center", justifyContent: "center" }}>
+          <View
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 11,
+              backgroundColor: color.primarySoft,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
             <Icon name="plus" color={color.primaryDeep} size={18} />
           </View>
         </View>

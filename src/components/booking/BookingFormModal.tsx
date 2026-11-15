@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { View, Text, TextInput, Pressable, Alert, ScrollView } from "react-native";
+import { View, Text, TextInput, Alert, ScrollView } from "react-native";
 import { BottomSheet } from "@/components/common/BottomSheet";
+import { Chip } from "@/components/common/Chip";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, font, radius, spacing } from "@/constants/theme";
 import { Button } from "@/components/common/Button";
 import { useBookingStore } from "@/store/bookingStore";
@@ -17,6 +19,7 @@ interface BookingFormModalProps {
 
 /** New-booking form opened from a calendar slot tap. Validates conflict via bookingStore.hasConflict before insert. */
 export function BookingFormModal({ visible, stylists, initialStylistId, initialHour, date, services, onClose }: BookingFormModalProps) {
+  const { sheetMaxBodyHeight, isCompactHeight } = useResponsiveLayout();
   const [stylistId, setStylistId] = useState(initialStylistId);
   const [hour, setHour] = useState(initialHour);
   useEffect(() => {
@@ -84,24 +87,30 @@ export function BookingFormModal({ visible, stylists, initialStylistId, initialH
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <ScrollView keyboardShouldPersistTaps="handled">
-        <View>
-          <Text style={{ color: color.textPrimary, fontFamily: font.display, fontSize: 22, fontWeight: "600" }}>Booking Baru</Text>
-          <Text style={{ color: color.textMuted, fontSize: 12, marginTop: 2, marginBottom: spacing.md }}>
-            {date.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
-          </Text>
+      <View>
+        <Text style={{ color: color.textPrimary, fontFamily: font.display, fontSize: isCompactHeight ? 20 : 22, fontWeight: "600" }}>
+          Booking Baru
+        </Text>
+        <Text style={{ color: color.textMuted, fontSize: 12, marginTop: 2, marginBottom: spacing.sm }}>
+          {date.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
+        </Text>
 
+        <ScrollView
+          style={{ maxHeight: sheetMaxBodyHeight }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={{ color: color.textSecondary, fontSize: 13, marginBottom: spacing.xs }}>Stylist</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
             {stylists.map((st) => (
-              <Chip key={st.id} active={stylistId === st.id} text={st.name} onPress={() => setStylistId(st.id)} />
+              <Chip key={st.id} active={stylistId === st.id} label={st.name} onPress={() => setStylistId(st.id)} />
             ))}
           </View>
 
           <Text style={{ color: color.textSecondary, fontSize: 13, marginTop: spacing.md, marginBottom: spacing.xs }}>Jam mulai</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs, paddingVertical: 2 }}>
             {HOURS.map((h) => (
-              <Chip key={h} active={hour === h} text={`${String(h).padStart(2, "0")}:00`} onPress={() => setHour(h)} />
+              <Chip key={h} active={hour === h} label={`${String(h).padStart(2, "0")}:00`} onPress={() => setHour(h)} />
             ))}
           </ScrollView>
 
@@ -125,27 +134,14 @@ export function BookingFormModal({ visible, stylists, initialStylistId, initialH
             Layanan
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
-            {services.map((svc) => {
-              const active = selectedServiceIds.includes(svc.id);
-              return (
-                <Pressable
-                  key={svc.id}
-                  onPress={() => toggleService(svc.id)}
-                  style={{
-                    paddingHorizontal: spacing.sm,
-                    paddingVertical: spacing.xs,
-                    borderRadius: radius.pill,
-                    backgroundColor: active ? color.primary : color.surfaceAlt,
-                    borderWidth: 1,
-                    borderColor: active ? color.primary : color.border,
-                  }}
-                >
-                  <Text style={{ color: active ? color.textOnPrimary : color.textSecondary, fontSize: 12, fontWeight: "600" }}>
-                    {svc.name}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {services.map((svc) => (
+              <Chip
+                key={svc.id}
+                active={selectedServiceIds.includes(svc.id)}
+                label={svc.name}
+                onPress={() => toggleService(svc.id)}
+              />
+            ))}
           </View>
 
           <Text style={{ color: color.textMuted, fontSize: 11, marginTop: spacing.xs }}>
@@ -160,36 +156,19 @@ export function BookingFormModal({ visible, stylists, initialStylistId, initialH
             placeholderTextColor={color.textMuted}
             style={[inputStyle, { marginTop: spacing.md }]}
           />
+        </ScrollView>
 
-          <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg }}>
-            <Button label="Batal" variant="secondary" style={{ flex: 1 }} onPress={onClose} />
-            <Button label="Simpan Booking" loading={saving} style={{ flex: 2 }} onPress={handleSave} />
-          </View>
+        <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: isCompactHeight ? spacing.sm : spacing.md }}>
+          <Button label="Batal" variant="secondary" style={{ flex: 1 }} onPress={onClose} />
+          <Button label="Simpan Booking" loading={saving} style={{ flex: 2 }} onPress={handleSave} />
         </View>
-      </ScrollView>
+      </View>
     </BottomSheet>
   );
 }
 
-function Chip({ active, text, onPress }: { active: boolean; text: string; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={{
-        paddingHorizontal: spacing.sm,
-        paddingVertical: 7,
-        borderRadius: radius.pill,
-        backgroundColor: active ? color.primary : color.surface,
-        borderWidth: 1,
-        borderColor: active ? color.primary : color.borderStrong,
-      }}
-    >
-      <Text style={{ color: active ? color.textOnPrimary : color.textSecondary, fontSize: 12, fontWeight: "600" }}>{text}</Text>
-    </Pressable>
-  );
-}
-
 const inputStyle = {
+  minHeight: 46,
   backgroundColor: color.surfaceAlt,
   borderRadius: radius.md,
   borderWidth: 1,

@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { BottomSheet } from "@/components/common/BottomSheet";
 import { Button } from "@/components/common/Button";
 import { StampCardView } from "@/components/member/StampCardView";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, font, radius, spacing } from "@/constants/theme";
 import { useMemberStore } from "@/store/memberStore";
 import { usePosStore } from "@/store/posStore";
@@ -19,6 +20,7 @@ interface MemberDetailModalProps {
 
 /** Detail member: kartu stamp 10x treatment, tombol tambah poin / klaim gratis, pakai di kasir, dan riwayat poin. */
 export function MemberDetailModal({ visible, member, onClose, onEdit }: MemberDetailModalProps) {
+  const { sheetMaxBodyHeight } = useResponsiveLayout();
   const members = useMemberStore((s) => s.members);
   const addTreatmentPoints = useMemberStore((s) => s.addTreatmentPoints);
   const redeemFreeTreatment = useMemberStore((s) => s.redeemFreeTreatment);
@@ -131,7 +133,7 @@ export function MemberDetailModal({ visible, member, onClose, onEdit }: MemberDe
           </Text>
         ) : null}
 
-        <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+        <ScrollView style={{ maxHeight: sheetMaxBodyHeight }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
           <StampCardView points={liveMember.points} />
 
           <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: spacing.sm }}>

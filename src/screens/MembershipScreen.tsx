@@ -10,6 +10,7 @@ import { ScreenHeader } from "@/components/common/ScreenHeader";
 import { StampCardView } from "@/components/member/StampCardView";
 import { MemberFormModal } from "@/components/member/MemberFormModal";
 import { MemberDetailModal } from "@/components/member/MemberDetailModal";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, font, radius, spacing } from "@/constants/theme";
 import { useMemberStore } from "@/store/memberStore";
 import { usePosStore } from "@/store/posStore";
@@ -26,6 +27,7 @@ type FilterMode = "all" | "ready_free" | "active";
  */
 export function MembershipScreen() {
   const insets = useSafeAreaInsets();
+  const { listColumns, width, pagePadding } = useResponsiveLayout();
   const members = useMemberStore((s) => s.members);
   const load = useMemberStore((s) => s.load);
   const addTreatmentPoints = useMemberStore((s) => s.addTreatmentPoints);
@@ -87,6 +89,12 @@ export function MembershipScreen() {
     );
   }
 
+  const memberColumns = listColumns >= 2 ? 2 : 1;
+  const maxCardWidth =
+    memberColumns > 1
+      ? Math.floor((width - pagePadding * 2 - spacing.sm * (memberColumns - 1)) / memberColumns)
+      : undefined;
+
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: color.bg }}>
       <ScreenHeader
@@ -97,12 +105,12 @@ export function MembershipScreen() {
               setEditing(null);
               setFormOpen(true);
             }}
-            hitSlop={10}
+            hitSlop={8}
             accessibilityLabel="Tambah Member"
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: color.primary,
@@ -114,11 +122,14 @@ export function MembershipScreen() {
       />
 
       <FlatList
+        key={memberColumns}
         data={filtered}
         keyExtractor={(m) => m.id}
+        numColumns={memberColumns}
+        columnWrapperStyle={memberColumns > 1 ? { gap: spacing.sm } : undefined}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
-          padding: spacing.md,
+          padding: pagePadding,
           paddingTop: spacing.xs,
           paddingBottom: spacing.md + insets.bottom,
           gap: spacing.sm,
@@ -171,6 +182,7 @@ export function MembershipScreen() {
               style={{
                 flexDirection: "row",
                 alignItems: "center",
+                minHeight: 46,
                 backgroundColor: color.surface,
                 borderRadius: radius.lg,
                 borderWidth: 1,
@@ -213,7 +225,7 @@ export function MembershipScreen() {
         renderItem={({ item: member }) => {
           const readyFreeCount = Math.floor(member.points / FREE_TREATMENT_POINTS);
           return (
-            <Pressable onPress={() => setDetailMember(member)}>
+            <Pressable onPress={() => setDetailMember(member)} style={{ flex: 1, maxWidth: maxCardWidth }}>
               <Card style={{ opacity: member.active ? 1 : 0.6 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flex: 1 }}>
@@ -275,6 +287,7 @@ export function MembershipScreen() {
                 <View
                   style={{
                     flexDirection: "row",
+                    flexWrap: "wrap",
                     alignItems: "center",
                     justifyContent: "space-between",
                     borderTopWidth: 1,
@@ -284,7 +297,7 @@ export function MembershipScreen() {
                     gap: spacing.xs,
                   }}
                 >
-                  <Text style={{ color: color.textMuted, fontSize: 11, flex: 1 }}>
+                  <Text style={{ color: color.textMuted, fontSize: 11, flexGrow: 1 }}>
                     Total {member.totalTreatments}x treatment • {member.totalRedeemed}x gratis dipakai
                   </Text>
                   <View style={{ flexDirection: "row", gap: 6 }}>
@@ -366,7 +379,7 @@ function SummaryBox({ label, value, highlight }: { label: string; value: string;
       >
         {value}
       </Text>
-      <Text style={{ color: color.textSecondary, fontSize: 11, marginTop: 2 }} numberOfLines={1}>
+      <Text style={{ color: color.textSecondary, fontSize: 11, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
         {label}
       </Text>
     </View>

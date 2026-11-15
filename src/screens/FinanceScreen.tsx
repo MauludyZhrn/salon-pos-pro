@@ -23,7 +23,7 @@ function last30DaysRange() {
 
 export function FinanceScreen() {
   const insets = useSafeAreaInsets();
-  const { useSidePanel } = useResponsiveLayout();
+  const { width, pagePadding } = useResponsiveLayout();
   const pnlByDay = useFinanceStore((s) => s.pnlByDay);
   const cashFlowByDay = useFinanceStore((s) => s.cashFlowByDay);
   const loadRange = useFinanceStore((s) => s.loadRange);
@@ -56,35 +56,59 @@ export function FinanceScreen() {
     return { revenue, expense, netProfit, netCash };
   }, [pnlByDay, cashFlowByDay]);
 
+  const fourColSummary = width >= 840;
+  const twoColCharts = width >= 960;
+
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: color.bg }}>
       <ScreenHeader title="Keuangan" />
-      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.md + insets.bottom, gap: spacing.md }}>
+      <ScrollView
+        contentContainerStyle={{
+          padding: pagePadding,
+          paddingBottom: spacing.md + insets.bottom,
+          gap: spacing.md,
+        }}
+      >
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Text style={{ color: color.textMuted, fontSize: 12 }}>30 hari terakhir</Text>
           <Button label="Export Excel" size="sm" variant="secondary" loading={exporting} onPress={handleExport} />
         </View>
 
-        <View style={{ flexDirection: useSidePanel ? "row" : "column", gap: spacing.sm }}>
-          <SummaryCard label="Pendapatan" value={summary.revenue} tone="accent" style={{ flex: 1 }} />
-          <SummaryCard label="Beban" value={summary.expense} tone="danger" style={{ flex: 1 }} />
-          <SummaryCard label="Laba bersih" value={summary.netProfit} tone="primary" style={{ flex: 1 }} />
-          <SummaryCard label="Arus kas bersih" value={summary.netCash} tone="info" style={{ flex: 1 }} />
+        {fourColSummary ? (
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <SummaryCard label="Pendapatan" value={summary.revenue} tone="accent" style={{ flex: 1 }} />
+            <SummaryCard label="Beban" value={summary.expense} tone="danger" style={{ flex: 1 }} />
+            <SummaryCard label="Laba bersih" value={summary.netProfit} tone="primary" style={{ flex: 1 }} />
+            <SummaryCard label="Arus kas bersih" value={summary.netCash} tone="info" style={{ flex: 1 }} />
+          </View>
+        ) : (
+          <View style={{ gap: spacing.xs }}>
+            <View style={{ flexDirection: "row", gap: spacing.xs }}>
+              <SummaryCard label="Pendapatan" value={summary.revenue} tone="accent" style={{ flex: 1 }} />
+              <SummaryCard label="Beban" value={summary.expense} tone="danger" style={{ flex: 1 }} />
+            </View>
+            <View style={{ flexDirection: "row", gap: spacing.xs }}>
+              <SummaryCard label="Laba bersih" value={summary.netProfit} tone="primary" style={{ flex: 1 }} />
+              <SummaryCard label="Arus kas bersih" value={summary.netCash} tone="info" style={{ flex: 1 }} />
+            </View>
+          </View>
+        )}
+
+        <View style={{ flexDirection: twoColCharts ? "row" : "column", gap: spacing.md }}>
+          <Card style={{ flex: twoColCharts ? 1 : undefined }}>
+            <Text style={{ color: color.textPrimary, fontSize: 15, fontWeight: "600", marginBottom: spacing.sm }}>
+              Laba Rugi (PnL)
+            </Text>
+            <PnLChart data={pnlByDay} />
+          </Card>
+
+          <Card style={{ flex: twoColCharts ? 1 : undefined }}>
+            <Text style={{ color: color.textPrimary, fontSize: 15, fontWeight: "600", marginBottom: spacing.sm }}>
+              Arus Kas Harian
+            </Text>
+            <CashFlowChart data={cashFlowByDay} />
+          </Card>
         </View>
-
-        <Card>
-          <Text style={{ color: color.textPrimary, fontSize: 15, fontWeight: "600", marginBottom: spacing.sm }}>
-            Laba Rugi (PnL)
-          </Text>
-          <PnLChart data={pnlByDay} />
-        </Card>
-
-        <Card>
-          <Text style={{ color: color.textPrimary, fontSize: 15, fontWeight: "600", marginBottom: spacing.sm }}>
-            Arus Kas Harian
-          </Text>
-          <CashFlowChart data={cashFlowByDay} />
-        </Card>
 
         <Card>
           <Text style={{ color: color.textPrimary, fontSize: 15, fontWeight: "600", marginBottom: spacing.sm }}>
@@ -93,7 +117,13 @@ export function FinanceScreen() {
           {pnlByDay.slice(-7).reverse().map((d) => (
             <View
               key={d.date}
-              style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.xxs, borderBottomWidth: 1, borderBottomColor: color.border }}
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                paddingVertical: spacing.xs,
+                borderBottomWidth: 1,
+                borderBottomColor: color.border,
+              }}
             >
               <Text style={{ color: color.textSecondary, fontSize: 13 }}>{d.date}</Text>
               <Text style={{ color: d.netProfit >= 0 ? color.accent : color.danger, fontSize: 13, fontWeight: "600" }}>
@@ -120,8 +150,17 @@ function SummaryCard({
 }) {
   return (
     <Card style={style}>
-      <Text style={{ color: color.textMuted, fontSize: 11 }}>{label}</Text>
-      <Text style={{ color: color[tone], fontSize: 16, fontWeight: "700", marginTop: 2 }}>{formatRupiah(value)}</Text>
+      <Text style={{ color: color.textMuted, fontSize: 11 }} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text
+        style={{ color: color[tone], fontSize: 16, fontWeight: "700", marginTop: 2 }}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+      >
+        {formatRupiah(value)}
+      </Text>
     </Card>
   );
 }

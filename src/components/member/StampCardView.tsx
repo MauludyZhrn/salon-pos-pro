@@ -96,7 +96,16 @@ export function StampCardView({ points, compact = false }: StampCardViewProps) {
         borderColor: color.borderStrong,
       }}
     >
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm }}>
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: spacing.xs,
+          marginBottom: spacing.sm,
+        }}
+      >
         <View>
           <Text style={{ color: color.textSecondary, fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 }}>
             Kartu Stamp Treatment

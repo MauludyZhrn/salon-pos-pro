@@ -11,12 +11,34 @@ export interface ResponsiveLayout {
   height: number;
   orientation: Orientation;
   deviceClass: DeviceClass;
-  /** Columns for the POS product grid — the number that actually changes per layout. */
+  /** True on narrow smartphones (320–359dp width). */
+  isSmallPhone: boolean;
+  /** True when vertical height is tight (e.g. phone in landscape or split-screen < 500dp). */
+  isCompactHeight: boolean;
+  /** Convenience flag matching deviceClass === "tablet". */
+  isTablet: boolean;
+  /** Columns for the POS product grid — computed from actual available catalog width. */
   posGridColumns: number;
-  /** Whether the booking calendar should render week-view (wide) vs day-list (narrow). */
+  /** Columns for secondary card lists (Services, Membership, Employees, History). */
+  listColumns: number;
+  /** Columns for the Inventory product grid. */
+  inventoryColumns: number;
+  /** Whether the booking calendar should render stylist-column view (wide) vs agenda list (narrow). */
   useWideCalendar: boolean;
-  /** Whether cart/detail panel renders as a fixed side rail vs a bottom sheet. */
+  /** Whether POS cart renders as a fixed right side rail vs floating bar + Cart tab. */
   useSidePanel: boolean;
+  /** Adaptive width (300–380dp) for the POS side cart panel when useSidePanel is active. */
+  sidePanelWidth: number;
+  /** Available horizontal width for the POS product catalog. */
+  catalogWidth: number;
+  /** Horizontal screen padding adapted to screen width. */
+  pagePadding: number;
+  /** Maximum content width for centered form/settings/detail layouts on large tablets. */
+  contentMaxWidth: number;
+  /** Optional max width for BottomSheet modals so tablet sheets stay comfortably proportioned. */
+  sheetMaxWidth: number | undefined;
+  /** Safe maximum height for scrollable body inside a BottomSheet. */
+  sheetMaxBodyHeight: number;
 }
 
 /**
@@ -31,20 +53,77 @@ export function useResponsiveLayout(): ResponsiveLayout {
   const orientation: Orientation = width >= height ? "landscape" : "portrait";
   const shortEdge = Math.min(width, height);
   const deviceClass: DeviceClass = shortEdge >= breakpoint.tabletMin ? "tablet" : "phone";
+  const isTablet = deviceClass === "tablet";
+  const isSmallPhone = width <= breakpoint.smallPhoneMax;
+  const isCompactHeight = height < breakpoint.sidePanelMinHeight;
 
-  // Grid columns: driven by available width, not just device class, so a
-  // split-screen tablet or a folded foldable still gets a sane grid.
+  // Activate POS split-panel only when both horizontal width and vertical height
+  // can comfortably fit the product catalog AND the cart rail + checkout summary.
+  // Phone landscape (height < 500dp) stays in full-width grid mode with floating cart bar.
+  const useSidePanel =
+    width >= breakpoint.sidePanelMinWidth &&
+    height >= breakpoint.sidePanelMinHeight &&
+    (orientation === "landscape" || width >= breakpoint.wideTabletMin);
+
+  // Adaptive cart panel width between 300dp and 380dp (~34% of window width).
+  const sidePanelWidth = useSidePanel
+    ? Math.min(380, Math.max(300, Math.round(width * 0.34)))
+    : 0;
+
+  const pagePadding = isSmallPhone ? 12 : width >= breakpoint.wideTabletMin ? 20 : 16;
+
+  // Catalog width accounts for the side panel and horizontal gaps when split-panel is active.
+  const catalogWidth = useSidePanel ? Math.max(320, width - sidePanelWidth - pagePadding * 2) : width;
+
+  // Grid columns: driven by actual catalog width so cards remain 140–235dp wide
+  // across small phones, foldables, split-screen windows, and large tablets.
   const posGridColumns = (() => {
-    if (width < 420) return 2;
-    if (width < 700) return 3;
-    if (width < 1000) return 4;
+    if (catalogWidth < 520) return 2;
+    if (catalogWidth < 760) return 3;
+    if (catalogWidth < 980) return 4;
     return 5;
   })();
 
-  const useWideCalendar = deviceClass === "tablet" || (orientation === "landscape" && width >= 700);
-  const useSidePanel = orientation === "landscape" && width >= 700;
+  const listColumns = (() => {
+    if (width < 680) return 1;
+    if (width < 1100) return 2;
+    return 3;
+  })();
 
-  return { width, height, orientation, deviceClass, posGridColumns, useWideCalendar, useSidePanel };
+  const inventoryColumns = (() => {
+    if (width < 360) return 1;
+    if (width < 740) return 2;
+    if (width < 1100) return 3;
+    return 4;
+  })();
+
+  // Wide stylist-column calendar requires enough width (and reasonable height) to show time slots.
+  const useWideCalendar = width >= breakpoint.tabletMin && height >= 420;
+
+  const contentMaxWidth = 960;
+  const sheetMaxWidth = width >= breakpoint.tabletMin ? Math.min(600, width - 32) : undefined;
+  const sheetMaxBodyHeight = Math.max(160, Math.round(height * (isCompactHeight ? 0.56 : 0.65)));
+
+  return {
+    width,
+    height,
+    orientation,
+    deviceClass,
+    isSmallPhone,
+    isCompactHeight,
+    isTablet,
+    posGridColumns,
+    listColumns,
+    inventoryColumns,
+    useWideCalendar,
+    useSidePanel,
+    sidePanelWidth,
+    catalogWidth,
+    pagePadding,
+    contentMaxWidth,
+    sheetMaxWidth,
+    sheetMaxBodyHeight,
+  };
 }
 
 /**

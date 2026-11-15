@@ -4,6 +4,7 @@ import { BottomSheet } from "@/components/common/BottomSheet";
 import { Button } from "@/components/common/Button";
 import { PrinterDropdown } from "@/components/printer/PrinterDropdown";
 import { ReceiptPreview } from "@/components/pos/ReceiptPreview";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, font, radius, spacing } from "@/constants/theme";
 import { useReceiptConfig } from "@/hooks/useReceiptConfig";
 import { ensureBluetoothPermission, askBluetoothDenied } from "@/services/bluetoothPermissions";
@@ -21,6 +22,7 @@ interface TransactionDetailSheetProps {
 
 /** Detail satu transaksi: pratinjau struk, cetak ulang, dan (untuk yang berhak) edit. */
 export function TransactionDetailSheet({ visible, tx, canEdit, onClose, onEdit }: TransactionDetailSheetProps) {
+  const { sheetMaxBodyHeight } = useResponsiveLayout();
   const cfg = useReceiptConfig(visible);
   const [printer, setPrinter] = useState<PairedPrinter | null>(null);
   const [printing, setPrinting] = useState(false);
@@ -61,7 +63,7 @@ export function TransactionDetailSheet({ visible, tx, canEdit, onClose, onEdit }
             {isVoid && <Pill label="Void" bg="#F6D9DD" fg={color.danger} />}
           </View>
 
-          <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+          <ScrollView style={{ maxHeight: sheetMaxBodyHeight }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
             <ReceiptPreview tx={tx} cfg={cfg} reprint />
             <View style={{ height: spacing.md }} />
             <PrinterDropdown onChange={setPrinter} />

@@ -4,6 +4,7 @@ import { BottomSheet } from "@/components/common/BottomSheet";
 import { Button } from "@/components/common/Button";
 import { Chip } from "@/components/common/Chip";
 import { Icon } from "@/components/common/Icon";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, font, radius, spacing } from "@/constants/theme";
 import { useStylists } from "@/hooks/useStylists";
 import { updateTransaction } from "@/services/transactionRepo";
@@ -65,6 +66,7 @@ function effectiveLine(e: EditLine): CartLine {
 
 /** Koreksi transaksi yang sudah tercatat: nama, metode bayar, jumlah, stylist, diskon, biaya tambahan. */
 export function EditTransactionModal({ visible, tx, onClose, onSaved }: EditTransactionModalProps) {
+  const { sheetMaxBodyHeight } = useResponsiveLayout();
   const stylists = useStylists();
   const [customer, setCustomer] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("cash");
@@ -139,7 +141,7 @@ export function EditTransactionModal({ visible, tx, onClose, onSaved }: EditTran
         <Text style={{ color: color.textPrimary, fontFamily: font.display, fontSize: 22, fontWeight: "600" }}>Edit transaksi</Text>
         <Text style={{ color: color.textMuted, fontSize: 12, marginTop: 2, marginBottom: spacing.sm }}>{original.receiptNo}</Text>
 
-        <ScrollView style={{ maxHeight: 460 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ maxHeight: sheetMaxBodyHeight }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Label>Nama pelanggan</Label>
           <TextInput value={customer} onChangeText={setCustomer} placeholder="Opsional" placeholderTextColor={color.textMuted} style={inputStyle} />
 
@@ -286,9 +288,9 @@ function SumRow({ label, value, emphasis }: { label: string; value: string; emph
 const smallLabel = { color: color.textSecondary, fontSize: 11, marginBottom: 2 } as const;
 
 const stepStyle = {
-  width: 32,
-  height: 32,
-  borderRadius: 16,
+  width: 38,
+  height: 38,
+  borderRadius: 19,
   backgroundColor: color.surfaceAlt,
   borderWidth: 1,
   borderColor: color.border,

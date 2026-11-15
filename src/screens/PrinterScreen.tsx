@@ -6,6 +6,7 @@ import { ScreenHeader } from "@/components/common/ScreenHeader";
 import { Button } from "@/components/common/Button";
 import { PrinterDropdown } from "@/components/printer/PrinterDropdown";
 import { ReceiptPreview } from "@/components/pos/ReceiptPreview";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, radius, spacing } from "@/constants/theme";
 import { DEFAULT_RECEIPT, loadReceiptConfig, saveReceiptConfig, type ReceiptConfig } from "@/services/receiptConfig";
 import { sampleTransaction } from "@/utils/sampleReceipt";
@@ -16,6 +17,7 @@ import { ensureBluetoothPermission, askBluetoothDenied } from "@/services/blueto
 /** Printer choice and receipt layout. Changes show in the preview right away. */
 export function PrinterScreen() {
   const insets = useSafeAreaInsets();
+  const { width, pagePadding, contentMaxWidth } = useResponsiveLayout();
   const [cfg, setCfg] = useState<ReceiptConfig>(DEFAULT_RECEIPT);
   const [sample] = useState(() => sampleTransaction());
   const [printer, setPrinter] = useState<PairedPrinter | null>(null);
@@ -49,46 +51,59 @@ export function PrinterScreen() {
     }
   }
 
+  const twoColumns = width >= 760;
+
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: color.bg }}>
       <ScreenHeader title="Printer & Struk" />
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.md + insets.bottom, gap: spacing.md }}
+        contentContainerStyle={{
+          padding: pagePadding,
+          paddingBottom: spacing.md + insets.bottom,
+          gap: spacing.md,
+          width: "100%",
+          maxWidth: contentMaxWidth,
+          alignSelf: "center",
+        }}
       >
-        <Card>
-          <Text style={{ color: color.textPrimary, fontWeight: "600", marginBottom: spacing.xs }}>Printer</Text>
-          <PrinterDropdown onChange={setPrinter} />
-        </Card>
+        <View style={{ flexDirection: twoColumns ? "row" : "column", alignItems: "flex-start", gap: spacing.md }}>
+          <View style={{ flex: twoColumns ? 1.2 : undefined, width: twoColumns ? undefined : "100%", gap: spacing.md }}>
+            <Card>
+              <Text style={{ color: color.textPrimary, fontWeight: "600", marginBottom: spacing.xs }}>Printer</Text>
+              <PrinterDropdown onChange={setPrinter} />
+            </Card>
 
-        <Card>
-          <Text style={{ color: color.textPrimary, fontWeight: "600", marginBottom: spacing.sm }}>Isi struk</Text>
-          <Field label="Nama toko" value={cfg.outletName} onChangeText={(v) => update("outletName", v)} />
-          <Field label="Alamat" value={cfg.address} onChangeText={(v) => update("address", v)} placeholder="opsional" />
-          <Field label="Telepon" value={cfg.phone} onChangeText={(v) => update("phone", v)} placeholder="opsional" keyboardType="phone-pad" />
-          <Field label="Catatan bawah struk" value={cfg.footer} onChangeText={(v) => update("footer", v)} placeholder="contoh: Terima kasih!" />
+            <Card>
+              <Text style={{ color: color.textPrimary, fontWeight: "600", marginBottom: spacing.sm }}>Isi struk</Text>
+              <Field label="Nama toko" value={cfg.outletName} onChangeText={(v) => update("outletName", v)} />
+              <Field label="Alamat" value={cfg.address} onChangeText={(v) => update("address", v)} placeholder="opsional" />
+              <Field label="Telepon" value={cfg.phone} onChangeText={(v) => update("phone", v)} placeholder="opsional" keyboardType="phone-pad" />
+              <Field label="Catatan bawah struk" value={cfg.footer} onChangeText={(v) => update("footer", v)} placeholder="contoh: Terima kasih!" />
 
-          <Text style={label}>Lebar kertas</Text>
-          <View style={{ flexDirection: "row", gap: spacing.xs, marginBottom: spacing.sm }}>
-            <Chip active={cfg.paperWidth === 32} text="58 mm" onPress={() => update("paperWidth", 32)} />
-            <Chip active={cfg.paperWidth === 48} text="80 mm" onPress={() => update("paperWidth", 48)} />
+              <Text style={label}>Lebar kertas</Text>
+              <View style={{ flexDirection: "row", gap: spacing.xs, marginBottom: spacing.sm }}>
+                <Chip active={cfg.paperWidth === 32} text="58 mm" onPress={() => update("paperWidth", 32)} />
+                <Chip active={cfg.paperWidth === 48} text="80 mm" onPress={() => update("paperWidth", 48)} />
+              </View>
+
+              <Toggle label="Tampilkan logo" value={cfg.showLogo} onChange={(v) => update("showLogo", v)} />
+              <Toggle label="Tampilkan diskon" value={cfg.showDiscount} onChange={(v) => update("showDiscount", v)} />
+
+              <View style={{ marginTop: spacing.md }}>
+                <Button label="Simpan pengaturan struk" fullWidth onPress={save} />
+              </View>
+            </Card>
           </View>
 
-          <Toggle label="Tampilkan logo" value={cfg.showLogo} onChange={(v) => update("showLogo", v)} />
-          <Toggle label="Tampilkan diskon" value={cfg.showDiscount} onChange={(v) => update("showDiscount", v)} />
-
-          <View style={{ marginTop: spacing.md }}>
-            <Button label="Simpan pengaturan struk" fullWidth onPress={save} />
-          </View>
-        </Card>
-
-        <Card>
-          <Text style={{ color: color.textPrimary, fontWeight: "600", marginBottom: spacing.sm }}>Contoh struk</Text>
-          <ReceiptPreview tx={sample} cfg={cfg} />
-          <View style={{ marginTop: spacing.sm }}>
-            <Button label="Tes cetak" variant="secondary" loading={testing} onPress={testPrint} fullWidth />
-          </View>
-        </Card>
+          <Card style={{ flex: twoColumns ? 1 : undefined, width: twoColumns ? undefined : "100%" }}>
+            <Text style={{ color: color.textPrimary, fontWeight: "600", marginBottom: spacing.sm }}>Contoh struk</Text>
+            <ReceiptPreview tx={sample} cfg={cfg} />
+            <View style={{ marginTop: spacing.sm }}>
+              <Button label="Tes cetak" variant="secondary" loading={testing} onPress={testPrint} fullWidth />
+            </View>
+          </Card>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

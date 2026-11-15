@@ -4,6 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Card } from "@/components/common/Card";
 import { ScreenHeader } from "@/components/common/ScreenHeader";
 import { Button } from "@/components/common/Button";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { color, radius, spacing } from "@/constants/theme";
 import {
   configureSync,
@@ -23,6 +24,7 @@ import { enqueueSync } from "@/services/syncQueue";
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const { pagePadding, contentMaxWidth } = useResponsiveLayout();
   const currentEmployee = useAuthStore((s) => s.currentEmployee);
   const logout = useAuthStore((s) => s.logout);
   const refreshCurrent = useAuthStore((s) => s.refreshCurrent);
@@ -116,8 +118,17 @@ export function SettingsScreen() {
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: color.bg }}>
       <ScreenHeader title="Pengaturan" />
-      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.md + insets.bottom, gap: spacing.md }} keyboardShouldPersistTaps="handled">
-
+      <ScrollView
+        contentContainerStyle={{
+          padding: pagePadding,
+          paddingBottom: spacing.md + insets.bottom,
+          gap: spacing.md,
+          width: "100%",
+          maxWidth: contentMaxWidth,
+          alignSelf: "center",
+        }}
+        keyboardShouldPersistTaps="handled"
+      >
         <Card>
           <Text style={{ color: color.textPrimary, fontWeight: "600", marginBottom: spacing.xs }}>Akun</Text>
           {editingName ? (
@@ -129,6 +140,7 @@ export function SettingsScreen() {
                 placeholderTextColor={color.textMuted}
                 autoFocus
                 style={{
+                  minHeight: 46,
                   backgroundColor: color.surfaceAlt,
                   borderRadius: radius.md,
                   borderWidth: 1,
@@ -139,7 +151,7 @@ export function SettingsScreen() {
                   fontSize: 14,
                 }}
               />
-              <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: spacing.sm }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm }}>
                 <Button label="Simpan" size="sm" onPress={saveName} />
                 <Button label="Batal" size="sm" variant="ghost" onPress={() => setEditingName(false)} />
               </View>
@@ -148,7 +160,7 @@ export function SettingsScreen() {
             <>
               <Text style={{ color: color.textSecondary, fontSize: 13 }}>{currentEmployee?.name ?? "-"}</Text>
               <Text style={{ color: color.textMuted, fontSize: 12, textTransform: "capitalize" }}>{currentEmployee?.role}</Text>
-              <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: spacing.sm }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm }}>
                 <Button
                   label="Ubah nama"
                   variant="secondary"
@@ -180,7 +192,7 @@ export function SettingsScreen() {
                 {cloudPending > 0 ? ` · ${cloudPending} menunggu kirim` : ""}
               </Text>
               {cloudError && <Text style={{ color: color.danger, fontSize: 12, marginTop: 4 }}>{cloudError}</Text>}
-              <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: spacing.sm }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm }}>
                 <Button label="Sinkron sekarang" size="sm" variant="secondary" loading={cloudSyncing} onPress={() => syncNow()} />
                 <Button label="Putuskan" size="sm" variant="ghost" onPress={cloudLogout} />
               </View>
@@ -220,7 +232,7 @@ export function SettingsScreen() {
             secureTextEntry
             style={[inputStyle, { marginTop: spacing.xs }]}
           />
-          <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm }}>
             <Button label={sheetsActive ? "Simpan ulang" : "Simpan & aktifkan"} size="sm" loading={sheetsBusy} onPress={saveSheetsConfig} />
             {sheetsActive && (
               <Button label={`Kirim sekarang (${pending})`} size="sm" variant="secondary" loading={syncing} onPress={runSyncNow} />
@@ -228,7 +240,6 @@ export function SettingsScreen() {
             {sheetsActive && <Button label="Matikan" size="sm" variant="ghost" onPress={disableSheets} />}
           </View>
         </Card>
-
       </ScrollView>
     </SafeAreaView>
   );
