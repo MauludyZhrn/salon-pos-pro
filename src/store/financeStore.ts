@@ -12,6 +12,8 @@ export interface DailyPnL {
   bebanKomisi: Rupiah;
   bebanOperasional: Rupiah;
   netProfit: Rupiah;
+  /** Jumlah transaksi unik yang tercatat di jurnal pada tanggal tersebut. */
+  txCount: number;
 }
 
 export interface DailyCashFlow {
@@ -83,8 +85,11 @@ export const useFinanceStore = create<FinanceState>((set) => ({
       const totalRevenue = addMoney(revenueJasa, revenueRetail);
       const totalExpense = addMoney(hppRetail, hppBahan, bebanKomisi, bebanOperasional);
       const netProfit = subtractMoney(totalRevenue, totalExpense);
+      const txCount = new Set(
+        dayEntries.map((e) => e.transactionLocalId).filter((id): id is string => typeof id === "string" && id.length > 0)
+      ).size;
 
-      pnlByDay.push({ date, revenueJasa, revenueRetail, hppRetail, hppBahan, bebanKomisi, bebanOperasional, netProfit });
+      pnlByDay.push({ date, revenueJasa, revenueRetail, hppRetail, hppBahan, bebanKomisi, bebanOperasional, netProfit, txCount });
 
       const kasMasuk = dayEntries
         .filter((e) => CASH_ACCOUNTS.includes(e.account) && e.direction === "debit")

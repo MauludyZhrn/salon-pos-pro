@@ -3,7 +3,9 @@ import { enqueueSync } from "./syncQueue";
 import { useInventoryStore } from "@/store/inventoryStore";
 import { buildJournalEntries, computeCartTotals } from "@/utils/transaction";
 import { validateSplitPayment } from "@/utils/money";
-import type { CartLine, CatalogItem, LineAdjustment, PaymentLeg, PaymentMethod, Transaction, TransactionStatus } from "@/types";
+import { parseLocalDate } from "@/utils/dateFormat";
+import { addDaysToDateString, isValidDateString, localDateString } from "@/utils/promotions";
+import type { CartLine, CatalogItem, JournalEntry, LineAdjustment, PaymentLeg, PaymentMethod, Transaction, TransactionStatus } from "@/types";
 
 /** Baca dan koreksi transaksi yang sudah tercatat (Riwayat Transaksi). */
 
@@ -19,11 +21,47 @@ export interface TxSummary {
   itemCount: number;
 }
 
-export type HistoryPeriod = "today" | "7d" | "30d" | "all";
+export type HistoryPeriod = "today" | "7d" | "30d" | "all" | "custom";
+
+export interface HistoryDateBounds {
+  /** Tanggal awal inklusif (YYYY-MM-DD jam lokal) atau null = tanpa batas bawah. */
+  fromDate: string | null;
+  /** Tanggal akhir inklusif (YYYY-MM-DD jam lokal) atau null = tanpa batas atas. */
+  toDate: string | null;
+}
+
+export interface HistoryQueryOptions {
+  period?: HistoryPeriod;
+  fromDate?: string | null;
+  toDate?: string | null;
+  query?: string;
+  limit?: number;
+}
+
+export interface HistoryQueryResult {
+  rows: TxSummary[];
+  totalCount: number;
+  paidCount: number;
+  paidTotal: number;
+  minCreatedAt: string | null;
+  maxCreatedAt: string | null;
+}
+
+export interface JournalDayTx extends TxSummary {
+  itemsPreview: string;
+  cashierName: string | null;
+  itemUnits: number;
+}
+
+export interface DailyJournalDetail {
+  date: string;
+  transactions: JournalDayTx[];
+  standaloneEntries: JournalEntry[];
+}
 
 /** Awal periode menurut jam lokal HP, null = tanpa batas. */
 export function periodStart(period: HistoryPeriod, now: Date = new Date()): Date | null {
-  if (period === "all") return null;
+  if (period === "all" || period === "custom") return null;
   const d = new Date(now);
   d.setHours(0, 0, 0, 0);
   if (period === "7d") d.setDate(d.getDate() - 6);
@@ -31,34 +69,40 @@ export function periodStart(period: HistoryPeriod, now: Date = new Date()): Date
   return d;
 }
 
-export async function listTransactions(opts: { period: HistoryPeriod; query?: string; limit?: number }): Promise<TxSummary[]> {
-  const db = await getDb();
-  const where: string[] = [];
-  const params: (string | number)[] = [];
+/** Hitung rentang tanggal inklusif [fromDate, toDate] (YYYY-MM-DD lokal) untuk filter preset dan pergeseran periode. */
+export function computePeriodBounds(
+  period: Exclude<HistoryPeriod, "custom">,
+  windowOffset = 0,
+  now: Date = new Date()
+): HistoryDateBounds {
+  if (period === "all") return { fromDate: null, toDate: null };
+  const safeOffset = Math.min(0, Math.trunc(windowOffset));
+  const todayStr = localDateString(now);
 
-  const start = periodStart(opts.period);
-  if (start) {
-    where.push("t.created_at >= ?");
-    params.push(start.toISOString());
+  if (period === "today") {
+    const target = addDaysToDateString(todayStr, safeOffset);
+    return { fromDate: target, toDate: target };
   }
-  const q = opts.query?.trim();
-  if (q) {
-    where.push("(t.receipt_no LIKE ? OR COALESCE(t.customer_name, '') LIKE ?)");
-    params.push(`%${q}%`, `%${q}%`);
-  }
-  params.push(opts.limit ?? 300);
+  const span = period === "7d" ? 7 : 30;
+  const endDate = addDaysToDateString(todayStr, safeOffset * span);
+  const startDate = addDaysToDateString(endDate, -(span - 1));
+  return { fromDate: startDate, toDate: endDate };
+}
 
-  const rows = await db.getAllAsync<any>(
-    `SELECT t.local_id, t.receipt_no, t.created_at, t.customer_name, t.grand_total, t.payment_method, t.status, t.edited_at,
-            (SELECT COUNT(*) FROM transaction_items i WHERE i.transaction_local_id = t.local_id) AS item_count
-       FROM transactions t
-      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-      ORDER BY t.created_at DESC
-      LIMIT ?`,
-    params
-  );
+function localDayStartIso(yyyyMmDd: string): string | null {
+  const dt = parseLocalDate(yyyyMmDd);
+  return dt ? dt.toISOString() : null;
+}
 
-  return rows.map((r) => ({
+function localDayEndExclusiveIso(yyyyMmDd: string): string | null {
+  const dt = parseLocalDate(yyyyMmDd);
+  if (!dt) return null;
+  dt.setDate(dt.getDate() + 1);
+  return dt.toISOString();
+}
+
+function mapTxSummary(r: any): TxSummary {
+  return {
     localId: r.local_id,
     receiptNo: r.receipt_no,
     createdAt: r.created_at,
@@ -68,7 +112,167 @@ export async function listTransactions(opts: { period: HistoryPeriod; query?: st
     status: r.status,
     editedAt: r.edited_at ?? null,
     itemCount: r.item_count ?? 0,
+  };
+}
+
+/** Query transaksi beserta total agregat dan rentang tanggal aktual sesuai batas filter. */
+export async function queryTransactions(opts: HistoryQueryOptions): Promise<HistoryQueryResult> {
+  const db = await getDb();
+  const where: string[] = [];
+  const params: (string | number)[] = [];
+
+  const hasExplicitBounds = opts.fromDate !== undefined || opts.toDate !== undefined;
+  if (hasExplicitBounds) {
+    if (opts.fromDate && isValidDateString(opts.fromDate)) {
+      const startIso = localDayStartIso(opts.fromDate);
+      if (startIso) {
+        where.push("t.created_at >= ?");
+        params.push(startIso);
+      }
+    }
+    if (opts.toDate && isValidDateString(opts.toDate)) {
+      const endIso = localDayEndExclusiveIso(opts.toDate);
+      if (endIso) {
+        where.push("t.created_at < ?");
+        params.push(endIso);
+      }
+    }
+  } else if (opts.period) {
+    const start = periodStart(opts.period);
+    if (start) {
+      where.push("t.created_at >= ?");
+      params.push(start.toISOString());
+    }
+  }
+
+  const q = opts.query?.trim();
+  if (q) {
+    where.push("(t.receipt_no LIKE ? OR COALESCE(t.customer_name, '') LIKE ?)");
+    params.push(`%${q}%`, `%${q}%`);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const limit = opts.limit ?? 300;
+
+  const rows = await db.getAllAsync<any>(
+    `SELECT t.local_id, t.receipt_no, t.created_at, t.customer_name, t.grand_total, t.payment_method, t.status, t.edited_at,
+            (SELECT COUNT(*) FROM transaction_items i WHERE i.transaction_local_id = t.local_id) AS item_count
+       FROM transactions t
+      ${whereSql}
+      ORDER BY t.created_at DESC
+      LIMIT ?`,
+    [...params, limit]
+  );
+
+  const meta = await db.getFirstAsync<{
+    total_count: number;
+    paid_count: number | null;
+    paid_total: number | null;
+    min_created_at: string | null;
+    max_created_at: string | null;
+  }>(
+    `SELECT COUNT(*) AS total_count,
+            SUM(CASE WHEN t.status = 'paid' THEN 1 ELSE 0 END) AS paid_count,
+            COALESCE(SUM(CASE WHEN t.status = 'paid' THEN t.grand_total ELSE 0 END), 0) AS paid_total,
+            MIN(t.created_at) AS min_created_at,
+            MAX(t.created_at) AS max_created_at
+       FROM transactions t
+      ${whereSql}`,
+    params
+  );
+
+  return {
+    rows: rows.map(mapTxSummary),
+    totalCount: Number(meta?.total_count) || 0,
+    paidCount: Number(meta?.paid_count) || 0,
+    paidTotal: Number(meta?.paid_total) || 0,
+    minCreatedAt: meta?.min_created_at ?? null,
+    maxCreatedAt: meta?.max_created_at ?? null,
+  };
+}
+
+export async function listTransactions(opts: HistoryQueryOptions): Promise<TxSummary[]> {
+  const res = await queryTransactions(opts);
+  return res.rows;
+}
+
+/** Muat daftar transaksi & catatan jurnal non-transaksi untuk satu tanggal pada Jurnal Operasional Harian. */
+export async function listTransactionsForJournalDate(date: string): Promise<DailyJournalDetail> {
+  const db = await getDb();
+  const txRows = await db.getAllAsync<any>(
+    `SELECT t.local_id, t.receipt_no, t.created_at, t.customer_name, t.grand_total, t.payment_method,
+            t.status, t.edited_at, e.name AS cashier_name
+       FROM transactions t
+       LEFT JOIN employees e ON e.id = t.cashier_id
+      WHERE EXISTS (SELECT 1 FROM journal_entries j WHERE j.transaction_local_id = t.local_id AND j.date = ?)
+         OR substr(t.created_at, 1, 10) = ?
+      ORDER BY t.created_at DESC`,
+    [date, date]
+  );
+
+  const itemRows = await db.getAllAsync<{ transaction_local_id: string; item_name: string; qty: number }>(
+    `SELECT i.transaction_local_id, i.item_name, i.qty
+       FROM transaction_items i
+      WHERE i.transaction_local_id IN (
+        SELECT t.local_id
+          FROM transactions t
+         WHERE EXISTS (SELECT 1 FROM journal_entries j WHERE j.transaction_local_id = t.local_id AND j.date = ?)
+            OR substr(t.created_at, 1, 10) = ?
+      )
+      ORDER BY i.rowid`,
+    [date, date]
+  );
+
+  const itemsByTx = new Map<string, { labels: string[]; count: number; units: number }>();
+  for (const item of itemRows) {
+    const bucket = itemsByTx.get(item.transaction_local_id) ?? { labels: [], count: 0, units: 0 };
+    const qty = Number(item.qty) || 1;
+    bucket.labels.push(qty > 1 ? `${item.item_name} ×${qty}` : item.item_name);
+    bucket.count += 1;
+    bucket.units += qty;
+    itemsByTx.set(item.transaction_local_id, bucket);
+  }
+
+  const transactions: JournalDayTx[] = txRows.map((r) => {
+    const bucket = itemsByTx.get(r.local_id);
+    const labels = bucket?.labels ?? [];
+    const itemsPreview =
+      labels.length === 0
+        ? "Tanpa item"
+        : labels.length <= 2
+          ? labels.join(", ")
+          : `${labels.slice(0, 2).join(", ")} +${labels.length - 2} lainnya`;
+    return {
+      ...mapTxSummary({ ...r, item_count: bucket?.count ?? 0 }),
+      itemsPreview,
+      cashierName: r.cashier_name ?? null,
+      itemUnits: bucket?.units ?? 0,
+    };
+  });
+
+  const standaloneRows = await db.getAllAsync<any>(
+    `SELECT *
+       FROM journal_entries j
+      WHERE j.date = ?
+        AND (j.transaction_local_id IS NULL
+             OR j.transaction_local_id = ''
+             OR NOT EXISTS (SELECT 1 FROM transactions t WHERE t.local_id = j.transaction_local_id))
+      ORDER BY j.created_at DESC`,
+    [date]
+  );
+
+  const standaloneEntries: JournalEntry[] = standaloneRows.map((row) => ({
+    id: row.id,
+    transactionLocalId: row.transaction_local_id ?? null,
+    date: row.date,
+    account: row.account,
+    direction: row.direction,
+    amount: row.amount,
+    memo: row.memo,
+    createdAt: row.created_at,
   }));
+
+  return { date, transactions, standaloneEntries };
 }
 
 function parseJson<T>(text: string | null | undefined, fallback: T): T {
